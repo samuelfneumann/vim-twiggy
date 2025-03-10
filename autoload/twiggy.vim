@@ -951,6 +951,7 @@ function! s:Render() abort
     autocmd CursorMoved twiggy://* call s:show_branch_details()
     autocmd CursorMoved twiggy://* call s:update_last_branch_under_cursor()
     autocmd BufReadPost,BufEnter,VimResized twiggy://* call <SID>Refresh()
+	autocmd User FugitiveChanged call <SID>Refresh() 
   augroup END
 
   nnoremap <buffer> <silent> j      :<C-U>call <SID>traverse_branches('j')<CR>
@@ -1118,16 +1119,32 @@ endfunction
 
 "     {{{3 Refresh
 function! s:Refresh() abort
-  if exists('t:refreshing') || !exists('t:twiggy_bufnr') || !exists('b:git_dir')
+  if exists('t:refreshing') | !exists('t:twiggy_bufnr') || !exists('b:git_dir')
     return
   endif
   let t:refreshing = 1
+  let t:switch_buff = 0
   if &filetype !=# 'twiggy'
+
+	" Store old buffer and cursor position in that buffer
+    let t:old_bufnr = bufnr('')
+	let t:line = line('.')
+	let t:col = col('.')
+	let t:switch_buff = 1
+
     let t:twiggy_git_dir = b:git_dir
     let t:twiggy_git_cmd = FugitiveShellCommand()
     call s:buffocus(t:twiggy_bufnr)
   endif
+
   call s:Render()
+
+  if t:switch_buff
+	" Switch back to old cursor position in the previous buffer
+	call s:buffocus(t:old_bufnr)
+	call cursor(t:line, t:col)
+  endif
+
   unlet t:refreshing
 endfunction
 
