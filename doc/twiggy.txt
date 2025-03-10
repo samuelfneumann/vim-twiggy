@@ -237,7 +237,7 @@ a                 Toggle grouping of local branches with slashes (/) in their
 ga                Toggle grouping of remote branches with slashes (/) in their
                   names.
 
-                  Checkout~
+                  Checkout/Switch~
                                                 *twiggy-c*
 c                 Checkout the branch under the cursor.  If the branch is a
                   remote, create a tracking branch if one doesn't already
@@ -266,11 +266,30 @@ gc                Prompt to checkout branch with a new name.
                                                 *twiggy-go*
 go                Same as gc
 
+                                                *twiggy-cb<space>*
+cb<space>         Populate command line with "G branch "
+
+                                                *twiggy-cb<space>*
+co<space>         Populate command line with "G checkout "
+
+                                                *twiggy-s<space>*
+s<space>         Populate command line with "G switch "
+
+                  Committing~
+                                                *twiggy-c<space>*
+c<Space>         Populate command line with ":G commit "
+
                   Fetching~
                                                 *twiggy-f*
 f                 Fetch the remote for the branch under the cursor.
 
+                                                *twiggy-cf<space>*
+cf<Space>         Populate command line with ":G fetch "
+
                   Merging and Rebasing~
+                                                *twiggy-cm<space>*
+cm<Space>         Populate command line with ":G merge "
+
                                                 *twiggy-m*
 m                 Merge the branch under the cursor into the current branch.
 
@@ -287,12 +306,34 @@ gm                Like m, but with --no-ff
                                                 *twiggy-gM*
 gm                Like M, but with --no-ff
 
+                                                *twiggy-r<space>*
+r<Space>          Populate command line with :Git rebase
+
+
                                                 *twiggy-r*
 r                 Rebase the current branch off the branch under the cursor.
 
                                                 *twiggy-R*
 R                 Rebase the current branch off the branch under the
                   cursor's remote (if it has one).
+
+                                                *twiggy-gr*
+gr                Like r, but with --autostash
+
+                                                *twiggy-gR*
+gR                Like R, but with --autostash
+
+                                                *twiggy-ri*
+ri                Like r, with with -i
+
+                                                *twiggy-Ri*
+Ri                Like R, with with -i
+
+                                                *twiggy-gri*
+gri               Like ri, with with --autostash
+
+                                                *twiggy-gRi*
+gRi               Like iR, with with --autostash
 
                   Pushing~
                                                 *twiggy-P*
@@ -358,6 +399,9 @@ gL                Git log on the range of the commits between the branch
 
                                                 *twiggy-<<*
 >>                `git stash pop`
+
+                                                *twiggy-cz<space>*
+cz<space>         Populate command line with "G stash "
 
                   The End~
                                                 *twiggy-q*

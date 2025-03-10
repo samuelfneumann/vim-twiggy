@@ -607,6 +607,8 @@ function! s:quickhelp_view() abort
   call add(output, 'gM    `M` --no-ff')
   call add(output, 'r     rebase')
   call add(output, 'R     rebase remote')
+  call add(output, 'gri   `r` -i --autostash')
+  call add(output, 'gRi   `R` -i --autostash')
   call add(output, 'P     push')
   call add(output, 'gP    push (prompted)')
   call add(output, '!P    force push (with lease)')
@@ -953,6 +955,14 @@ function! s:Render() abort
     autocmd BufReadPost,BufEnter,VimResized twiggy://* call <SID>Refresh()
   augroup END
 
+  nnoremap <buffer> <silent> cf<space> :<C-U>G fetch<space>
+  nnoremap <buffer> <silent> cm<space> :<C-U>G merge<space>
+  nnoremap <buffer> <silent> cb<space> :<C-U>G branch<space>
+  nnoremap <buffer> <silent> co<space> :<C-U>G checkout<space>
+  nnoremap <buffer> <silent> cz<space> :<C-U>G stash<space>
+  nnoremap <buffer> <silent> s<space> :<C-U>G switch<space>
+  nnoremap <buffer> <silent> r<space> :<C-U>G rebase<space>
+
   nnoremap <buffer> <silent> j      :<C-U>call <SID>traverse_branches('j')<CR>
   nnoremap <buffer> <silent> k      :<C-U>call <SID>traverse_branches('k')<CR>
   nnoremap <buffer> <silent> <Down> :<C-U>call <SID>traverse_branches('j')<CR>
@@ -980,8 +990,14 @@ function! s:Render() abort
   call s:mapping('M',       'Merge',            [1, ''])
   call s:mapping('gm',      'Merge',            [0, '--no-ff'])
   call s:mapping('gM',      'Merge',            [1, '--no-ff'])
-  call s:mapping('r',       'Rebase',           [0])
-  call s:mapping('R',       'Rebase',           [1])
+  call s:mapping('r',       'Rebase',           [0, 0, 0])
+  call s:mapping('R',       'Rebase',           [1, 0, 0])
+  call s:mapping('ri',      'Rebase',           [0, 0, 1])
+  call s:mapping('Ri',      'Rebase',           [1, 0, 1])
+  call s:mapping('gr',      'Rebase',           [0, 1, 0])
+  call s:mapping('gR',      'Rebase',           [1, 1, 0])
+  call s:mapping('gri',     'Rebase',           [0, 1, 1])
+  call s:mapping('gRi',     'Rebase',           [1, 1, 1])
   call s:mapping('^',       'Push',             [0, 0]) " deprecated
   call s:mapping('g^',      'Push',             [1, 0]) " deprecated 
   call s:mapping('!^',      'Push',             [0, 1]) " deprecated
@@ -1352,22 +1368,32 @@ function! s:Merge(remote, flags) abort
 endfunction
 
 "     {{{3 Rebase
-function! s:Rebase(remote) abort
+function! s:Rebase(remote, autostash, interactive) abort
   let branch = s:branch_under_cursor()
+
+  if a:autostash
+	let gitcmd = "rebase --autostash "
+  else
+	let gitcmd = "rebase "
+  endif
+
+  if a:interactive
+	  let gitcmd = l:gitcmd . "-i "
+  endif
 
   if a:remote
     if branch.tracking ==# ''
       let v:warningmsg = 'No tracking branch for ' . branch.name
       return 1
     else
-      call s:git_cmd('rebase ' . ' ' . branch.tracking, 1)
+      call s:git_cmd(gitcmd . ' ' . branch.tracking, 1)
     endif
   else
     if branch.fullname ==# s:get_current_branch()
       let v:warningmsg = 'Can''t rebase off of self'
       return 1
     else
-      call s:git_cmd('rebase ' . ' ' . branch.fullname, 1)
+      call s:git_cmd(gitcmd . ' ' . branch.fullname, 1)
     endif
   endif
 
