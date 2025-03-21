@@ -585,11 +585,12 @@ function! s:quickhelp_view() abort
   let output = []
   call add(output, 'Twiggy Quickhelp')
   call add(output, '===========================')
-  call add(output, '<C-N> jump to next group')
-  call add(output, '<C-P> jump to prev group')
-  call add(output, 'J     jump to curr branch')
-  call add(output, 'q     quit')
-  call add(output, '?     toggle this help')
+  call add(output, '<space>R  Refresh')
+  call add(output, '<C-N>	  jump to next group')
+  call add(output, '<C-P>	  jump to prev group')
+  call add(output, 'J         jump to curr branch')
+  call add(output, 'q         quit')
+  call add(output, '?         toggle this help')
   call add(output, '---------------------------')
   call add(output, 'w/ the cursor on a branch:')
   call add(output, '---------------------------')
@@ -953,7 +954,7 @@ function! s:Render() abort
     autocmd CursorMoved twiggy://* call s:show_branch_details()
     autocmd CursorMoved twiggy://* call s:update_last_branch_under_cursor()
     autocmd BufReadPost,BufEnter,VimResized twiggy://* call <SID>Refresh()
-	autocmd User FugitiveChanged call <SID>Refresh() 
+	" autocmd User FugitiveChanged call <SID>Refresh() 
   augroup END
 
   nnoremap <buffer> <silent> cf<space> :<C-U>G fetch<space>
@@ -991,6 +992,7 @@ function! s:Render() abort
   call s:mapping('M',       'Merge',            [1, ''])
   call s:mapping('gm',      'Merge',            [0, '--no-ff'])
   call s:mapping('gM',      'Merge',            [1, '--no-ff'])
+  call s:mapping('<space>R','Refresh',          [])
   call s:mapping('r',       'Rebase',           [0, 0, 0])
   call s:mapping('R',       'Rebase',           [1, 0, 0])
   call s:mapping('ri',      'Rebase',           [0, 0, 1])
