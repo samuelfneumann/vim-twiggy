@@ -1538,3 +1538,5 @@ endfunction
 autocmd BufEnter twiggy://* exec "command! -buffer Git " . <SID>close_string() . " | silent normal! :<\C-U>Git\<CR>"
 autocmd BufEnter twiggy://* exec "command! -buffer Git commit " . <SID>close_string() . " | silent normal! :<\C-U>Git commit\<CR>"
 autocmd BufEnter twiggy://* exec "command! -buffer Git blame  " . <SID>close_string() . " | silent normal! :<\C-U>Git blame\<CR>"
+
+command! TwiggyRefresh call <SID>Refresh()
