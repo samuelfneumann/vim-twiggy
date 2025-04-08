@@ -925,7 +925,7 @@ function! s:Render() abort
     elseif t:twiggy_git_mode ==# 'merge'
       call s:mapping('a', 'Abort', ['merge'])
     elseif t:twiggy_git_mode ==# 'cherry-pick'
-      call s:mapping('s', 'Continue', ['cherry-pick'])
+      call s:mapping('c', 'Continue', ['cherry-pick'])
       call s:mapping('a', 'Abort', ['cherry-pick'])
     endif
 
