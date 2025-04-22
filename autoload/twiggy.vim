@@ -962,8 +962,8 @@ function! s:Render() abort
   nnoremap <buffer> <silent> cb<space> :<C-U>G branch<space>
   nnoremap <buffer> <silent> co<space> :<C-U>G checkout<space>
   nnoremap <buffer> <silent> cz<space> :<C-U>G stash<space>
-  nnoremap <buffer> <silent> s<space> :<C-U>G switch<space>
-  nnoremap <buffer> <silent> r<space> :<C-U>G rebase<space>
+  nnoremap <buffer> <silent> cs<space> :<C-U>G switch<space>
+  nnoremap <buffer> <silent> cr<space> :<C-U>G rebase<space>
 
   nnoremap <buffer> <silent> j      :<C-U>call <SID>traverse_branches('j')<CR>
   nnoremap <buffer> <silent> k      :<C-U>call <SID>traverse_branches('k')<CR>
