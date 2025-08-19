@@ -662,6 +662,7 @@ function! s:merge_view() abort
         \ "merge in progress",
         \ "",
         \ "from this window:",
+        \ "  c to continue",
         \ "  a to abort"
         \ ]
 endfunction
@@ -924,6 +925,7 @@ function! s:Render() abort
       call s:mapping('a', 'Abort', ['rebase'])
     elseif t:twiggy_git_mode ==# 'merge'
       call s:mapping('a', 'Abort', ['merge'])
+      call s:mapping('c', 'Continue', ['merge'])
     elseif t:twiggy_git_mode ==# 'cherry-pick'
       call s:mapping('c', 'Continue', ['cherry-pick'])
       call s:mapping('a', 'Abort', ['cherry-pick'])
@@ -1420,7 +1422,7 @@ function! s:Rebase(remote, autostash, interactive) abort
   return 0
 endfunction
 
-"     {{{3 Continue Rebase
+"     {{{3 Merge/Rebase/Cherry-Pick Continue
 function! s:Continue(type) abort
   call s:git_cmd(a:type . ' --continue', 1)
 endfunction
