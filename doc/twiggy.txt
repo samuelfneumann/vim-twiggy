@@ -269,7 +269,7 @@ go                Same as gc
                                                 *twiggy-cb<space>*
 cb<space>         Populate command line with "G branch "
 
-                                                *twiggy-cb<space>*
+                                                *twiggy-co<space>*
 co<space>         Populate command line with "G checkout "
 
                                                 *twiggy-s<space>*
