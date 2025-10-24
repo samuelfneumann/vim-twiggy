@@ -103,6 +103,7 @@ let g:twiggy_enable_quickhelp       = get(g:,'twiggy_enable_quickhelp',       1 
 let g:twiggy_show_full_ui           = get(g:,'twiggy_show_full_ui',           g:twiggy_enable_quickhelp                                )
 let g:twiggy_git_log_command        = get(g:,'twiggy_git_log_command',        ''                                                       )
 let g:twiggy_refresh_buffers        = get(g:,'twiggy_refresh_buffers',        1                                                        )
+let g:twiggy_use_nvim_nvr 	    = get(g:,'twiggy_use_nvim_nvr',           1                                                        )
 
 "   {{{2 show_full_ui
 function! s:showing_full_ui()
@@ -1542,3 +1543,12 @@ autocmd BufEnter twiggy://* exec "command! -buffer Git commit " . <SID>close_str
 autocmd BufEnter twiggy://* exec "command! -buffer Git blame  " . <SID>close_string() . " | silent normal! :<\C-U>Git blame\<CR>"
 
 command! TwiggyRefresh call <SID>Refresh()
+
+if g:twiggy_use_nvim_nvr && has('nvim')
+    if executable('nvr')
+	autocmd FileType gitcommit,gitrebase,gitconfig set bufhidden=delete
+	let $GIT_EDITOR = 'nvr -cc split --remote-wait'
+    else
+	throw "you need to install 'nvr' when g:twiggy_use_nvim_nvr is true"
+    endif
+endif
