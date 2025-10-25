@@ -316,7 +316,7 @@ function! s:get_git_mode() abort
     return 'cherry-pick'
   elseif s:fexists(git_dir . '/MERGE_HEAD')
     return 'merge'
-  elseif !empty(s:git_cmd('diff --shortstat --diff-filter=U | tail -1', 0))
+  elseif !empty(s:git_cmd('diff --diff-filter=U --name-only', 0))
     return 'stash'
   else
     return 'normal'
