@@ -1433,11 +1433,12 @@ function! s:Skip() abort
   call s:MaybeCloseWindowByBufferIden(".git/COMMIT_EDITMSG")
 endfunction
 
-"     {{{3 Merge/Rebase Abort
+"     {{{3 Merge/Rebase/Cherry-Pick Abort
 function! s:Abort(type) abort
   call s:git_cmd(a:type . ' --abort', 0)
   cclose
   call s:MaybeCloseWindowByBufferIden(".git/MERGE_MSG")
+  call s:MaybeCloseWindowByBufferIden(".git/COMMIT_EDITMSG")
   redraw | echo a:type . ' aborted'
 endfunction
 
