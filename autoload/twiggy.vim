@@ -1430,14 +1430,14 @@ endfunction
 "     {{{3 Skip Rebase
 function! s:Skip() abort
   call s:git_cmd('rebase --skip', 1)
-  call s:CloseWindowByBufferIden(".git/COMMIT_EDITMSG")
+  call s:MaybeCloseWindowByBufferIden(".git/COMMIT_EDITMSG")
 endfunction
 
 "     {{{3 Merge/Rebase Abort
 function! s:Abort(type) abort
   call s:git_cmd(a:type . ' --abort', 0)
   cclose
-  call s:CloseWindowByBufferIden(".git/MERGE_MSG")
+  call s:MaybeCloseWindowByBufferIden(".git/MERGE_MSG")
   redraw | echo a:type . ' aborted'
 endfunction
 
@@ -1461,7 +1461,7 @@ function! s:CloseWindowById(win_id)
     endif
 endfunction
 
-function! s:CloseWindowByBufferIden(buffer_iden)
+function! s:MaybeCloseWindowByBufferIden(buffer_iden)
     " Get the window number of the first window showing the specified buffer
     let l:win_id = bufwinid(a:buffer_iden)
     call s:CloseWindowById(l:win_id)
