@@ -134,7 +134,7 @@ endfunction
 "   {{{2 attn
 function! s:attn_mode() abort
   if exists('t:twiggy_git_mode') &&
-        \ index(['rebase', 'merge', 'cherry-pick'], t:twiggy_git_mode) >= 0
+        \ index(['rebase', 'merge', 'cherry-pick', 'stash'], t:twiggy_git_mode) >= 0
     return 1
   endif
   return 0
@@ -314,9 +314,10 @@ function! s:get_git_mode() abort
     return 'rebase'
   elseif s:fexists(git_dir . '/CHERRY_PICK_HEAD')
     return 'cherry-pick'
-  elseif s:fexists(git_dir . '/MERGE_HEAD') ||
-        \ !empty(s:git_cmd('diff --shortstat --diff-filter=U | tail -1', 0))
+  elseif s:fexists(git_dir . '/MERGE_HEAD')
     return 'merge'
+  elseif !empty(s:git_cmd('diff --shortstat --diff-filter=U | tail -1', 0))
+    return 'stash'
   else
     return 'normal'
   endif
@@ -678,6 +679,17 @@ function! s:cherry_pick_view() abort
         \ ]
 endfunction
 
+"   {{{2 stash_view
+function! s:stash_view() abort
+  return [
+        \ "stash conflicts",
+        \ "",
+        \ "from this window:",
+        \ "  c to continue (commit)",
+        \ "  a to abort (reset)"
+        \ ]
+endfunction
+
 "   {{{2 Branch Details
 function! s:show_branch_details() abort
   let line = line('.')
@@ -929,12 +941,16 @@ function! s:Render() abort
     elseif t:twiggy_git_mode ==# 'cherry-pick'
       call s:mapping('c', 'Continue', ['cherry-pick'])
       call s:mapping('a', 'Abort', ['cherry-pick'])
+    elseif t:twiggy_git_mode ==# 'stash'
+      call s:mapping('c', 'ContinueStash', [])
+      call s:mapping('a', 'AbortStash', [])
     endif
 
     syntax match TwiggyAttnModeMapping "\v%3c(s|c|a)"
     highlight link TwiggyAttnModeMapping Identifier
 
     syntax match TwiggyAttnModeTitle "\v^(rebase|merge|cherry pick) in progress"
+    syntax match TwiggyAttnModeTitle "\v^stash conflicts"
     highlight link TwiggyAttnModeTitle Type
 
     syntax match TwiggyAttnModeInstruction "\v^from this window:"
@@ -1437,6 +1453,18 @@ function! s:Abort(type) abort
   call s:git_cmd(a:type . ' --abort', 0)
   cclose
   redraw | echo a:type . ' aborted'
+endfunction
+
+"     {{{3 Stash Continue
+function! s:ContinueStash() abort
+  call s:git_cmd('commit', 1)
+endfunction
+
+"     {{{3 Stash Abort
+function! s:AbortStash() abort
+  call s:git_cmd('reset --merge', 0)
+  cclose
+  redraw | echo 'stash aborted'
 endfunction
 
 "     {{{3 Push
