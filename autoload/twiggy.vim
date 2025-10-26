@@ -942,8 +942,8 @@ function! s:Render() abort
       call s:mapping('c', 'Continue', ['cherry-pick'])
       call s:mapping('a', 'Abort', ['cherry-pick'])
     elseif t:twiggy_git_mode ==# 'stash'
-      call s:mapping('c', 'ContinueStash', [])
-      call s:mapping('a', 'AbortStash', [])
+      call s:mapping('c', 'Continue', ['stash'])
+      call s:mapping('a', 'Abort', ['stash'])
     endif
 
     syntax match TwiggyAttnModeMapping "\v%3c(s|c|a)"
@@ -1438,9 +1438,13 @@ function! s:Rebase(remote, autostash, interactive) abort
   return 0
 endfunction
 
-"     {{{3 Merge/Rebase/Cherry-Pick Continue
+"     {{{3 Merge/Rebase/Cherry-Pick/Stash Continue
 function! s:Continue(type) abort
-  call s:git_cmd(a:type . ' --continue', 1)
+  if a:type ==? 'stash'
+      call s:ContinueStash()
+  else
+    call s:git_cmd(a:type . ' --continue', 1)
+  endif
 endfunction
 
 "     {{{3 Skip Rebase
@@ -1448,9 +1452,13 @@ function! s:Skip() abort
   call s:git_cmd('rebase --skip', 1)
 endfunction
 
-"     {{{3 Merge/Rebase Abort
+"     {{{3 Merge/Rebase/Cherry-Pick/Stash Abort
 function! s:Abort(type) abort
-  call s:git_cmd(a:type . ' --abort', 0)
+  if a:type ==? 'stash'
+    call s:AbortStash()
+  else
+    call s:git_cmd(a:type . ' --abort', 0)
+  endif
   cclose
   redraw | echo a:type . ' aborted'
 endfunction
@@ -1463,8 +1471,6 @@ endfunction
 "     {{{3 Stash Abort
 function! s:AbortStash() abort
   call s:git_cmd('reset --merge', 0)
-  cclose
-  redraw | echo 'stash aborted'
 endfunction
 
 "     {{{3 Push
