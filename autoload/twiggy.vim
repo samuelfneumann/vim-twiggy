@@ -1313,6 +1313,8 @@ function! s:Checkout(track) abort
 
   doautocmd User TwiggyCheckout
 
+  call s:MaybeRefreshFugitiveStatus()
+
   return 0
 endfunction
 
