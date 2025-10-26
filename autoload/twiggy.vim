@@ -103,6 +103,19 @@ let g:twiggy_enable_quickhelp       = get(g:,'twiggy_enable_quickhelp',       1 
 let g:twiggy_show_full_ui           = get(g:,'twiggy_show_full_ui',           g:twiggy_enable_quickhelp                                )
 let g:twiggy_git_log_command        = get(g:,'twiggy_git_log_command',        ''                                                       )
 let g:twiggy_refresh_buffers        = get(g:,'twiggy_refresh_buffers',        1                                                        )
+let g:twiggy_refresh_fugitive        = get(g:,'twiggy_refresh_fugitive',        1                                                        )
+
+function! ForceRefreshFugitiveSummaryLoaded()
+    let s:loaded_fugitive_summary = v:false
+    for l:winnr in range(1, winnr('$'))
+	if !empty(getwinvar(l:winnr, 'fugitive_status'))
+	    let s:loaded_fugitive_summary = v:true
+	    return
+	endif
+    endfor
+endfunction
+" The first time Twiggy is loaded, check if the fugitive status buffer is open
+call ForceRefreshFugitiveSummaryLoaded()
 
 "   {{{2 show_full_ui
 function! s:showing_full_ui()
@@ -972,7 +985,9 @@ function! s:Render() abort
     autocmd CursorMoved twiggy://* call s:show_branch_details()
     autocmd CursorMoved twiggy://* call s:update_last_branch_under_cursor()
     autocmd BufReadPost,BufEnter,VimResized twiggy://* call <SID>Refresh()
-	" autocmd User FugitiveChanged call <SID>Refresh() 
+    " autocmd User FugitiveChanged call <SID>Refresh() 
+    autocmd User FugitiveIndex let s:loaded_fugitive_summary = v:true
+    autocmd BufUnload fugitive://* call s:CheckFugitiveSummaryClosed()
   augroup END
 
   nnoremap <buffer> <silent> cf<space> :<C-U>G fetch<space>
@@ -1298,6 +1313,8 @@ function! s:Checkout(track) abort
 
   doautocmd User TwiggyCheckout
 
+  call s:MaybeRefreshFugitiveStatus()
+
   return 0
 endfunction
 
@@ -1438,6 +1455,34 @@ function! s:Rebase(remote, autostash, interactive) abort
   return 0
 endfunction
 
+function s:CheckFugitiveSummaryClosed()
+    let var = getbufvar(str2nr(expand('<abuf>')), "fugitive_type", "")
+    if var !=# "index"
+	" Deleted buffer was not the fugitive status buffer
+	return
+    endif
+    let s:loaded_fugitive_summary = v:false
+endfunction
+
+function! s:IsFugitiveStatusWindowOpen() abort
+    if !exists("g:loaded_fugitive") || !g:loaded_fugitive
+	return v:false
+    endif
+
+    return s:loaded_fugitive_summary
+endfunction
+
+function! s:MaybeRefreshFugitiveStatus()
+  if !g:twiggy_refresh_fugitive
+      return
+  endif
+
+  let fugitive_open = s:IsFugitiveStatusWindowOpen()
+  if fugitive_open
+    call fugitive#ReloadStatus()
+  endif
+endfunction
+
 "     {{{3 Merge/Rebase/Cherry-Pick/Stash Continue
 function! s:Continue(type) abort
   if a:type ==? 'stash'
@@ -1445,11 +1490,17 @@ function! s:Continue(type) abort
   else
     call s:git_cmd(a:type . ' --continue', 1)
   endif
+
+  redraw
+  call s:MaybeRefreshFugitiveStatus()
 endfunction
 
 "     {{{3 Skip Rebase
 function! s:Skip() abort
   call s:git_cmd('rebase --skip', 1)
+
+  redraw
+  call s:MaybeRefreshFugitiveStatus()
 endfunction
 
 "     {{{3 Merge/Rebase/Cherry-Pick/Stash Abort
@@ -1459,8 +1510,10 @@ function! s:Abort(type) abort
   else
     call s:git_cmd(a:type . ' --abort', 0)
   endif
+
   cclose
   redraw | echo a:type . ' aborted'
+  call s:MaybeRefreshFugitiveStatus()
 endfunction
 
 "     {{{3 Stash Continue
@@ -1549,6 +1602,8 @@ function! s:Rename() abort
   redraw
   echo "Renaming \"" . branch.fullname . "\" to \"" . new_name . "\"... "
   call s:git_cmd("branch -m " . branch.fullname . " " . new_name, 0)
+
+  call s:MaybeRefreshFugitiveStatus()
 endfunction
 
 "     {{{3 Stash
