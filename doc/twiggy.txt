@@ -45,7 +45,7 @@ multi_byte    standard
 ↓             -             branch is behind its upstream
 ↕             ~             branch is both ahead and behind its upstream
 ∅             %             branch is detached
-✗             x             in merge/rebase state
+✗             x             in merge/rebase/stash conflict state
 
 You may also use you own icons by setting the following in your vimrc:
 >
@@ -402,6 +402,11 @@ gL                Git log on the range of the commits between the branch
 
                                                 *twiggy-cz<space>*
 cz<space>         Populate command line with "G stash "
+
+                  When a stash is applied with conflicts, Twiggy will display
+                  a special UI to help resolve them:
+                    c - continue (commit resolved changes)
+                    a - abort (reset to previous state)
 
                   The End~
                                                 *twiggy-q*
