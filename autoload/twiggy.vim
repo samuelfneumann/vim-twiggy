@@ -1161,7 +1161,7 @@ endfunction
 
 "     {{{3 Refresh
 function! s:Refresh() abort
-  if exists('t:refreshing') || !exists('t:twiggy_bufnr') || !exists('b:git_dir')
+  if exists('t:refreshing') || !exists('t:twiggy_bufnr') || (!exists('t:twiggy_git_dir') && !exists('b:git_dir'))
     return
   endif
 
@@ -1175,7 +1175,9 @@ function! s:Refresh() abort
 	let t:col = col('.')
 	let t:switch_buff = 1
 
-    let t:twiggy_git_dir = b:git_dir
+	if exists('b:git_dir')
+		let t:twiggy_git_dir = b:git_dir
+	endif
     let t:twiggy_git_cmd = FugitiveShellCommand()
     call s:buffocus(t:twiggy_bufnr)
   endif
