@@ -980,6 +980,7 @@ function! s:Render() abort
     autocmd BufReadPost,BufEnter twiggy://* call <SID>Refresh()
     autocmd BufReadPost,BufEnter fugitive://* call <SID>Refresh()
 	" autocmd User FugitiveChanged call <SID>Refresh() 
+	autocmd User WorktreeCheckout call <SID>Refresh() 
   augroup END
 
   nnoremap <buffer> <silent> cf<space> :<C-U>G fetch<space>
