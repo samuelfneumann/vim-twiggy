@@ -977,7 +977,8 @@ function! s:Render() abort
     autocmd!
     autocmd CursorMoved twiggy://* call s:show_branch_details()
     autocmd CursorMoved twiggy://* call s:update_last_branch_under_cursor()
-    autocmd BufReadPost,BufEnter,VimResized twiggy://* call <SID>Refresh()
+    autocmd BufReadPost,BufEnter twiggy://* call <SID>Refresh()
+    autocmd BufReadPost,BufEnter fugitive://* call <SID>Refresh()
 	" autocmd User FugitiveChanged call <SID>Refresh() 
   augroup END
 
