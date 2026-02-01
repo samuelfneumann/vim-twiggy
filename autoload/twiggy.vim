@@ -1308,6 +1308,8 @@ function! s:Checkout(track) abort
 
   doautocmd User TwiggyCheckout
 
+  call fugitive#ReloadStatus()
+
   return 0
 endfunction
 
@@ -1331,6 +1333,8 @@ function! s:CheckoutAs() abort
     let s:last_branch_under_cursor = 0
 
     doautocmd User TwiggyCheckout
+
+	call fugitive#ReloadStatus()
 
     return 0
   endif
@@ -1455,6 +1459,9 @@ function! s:Continue(type) abort
   else
     call s:git_cmd(a:type . ' --continue', 1, {"no_dispatch": 1})
   endif
+
+  redraw
+  call fugitive#ReloadStatus()
 endfunction
 
 "     {{{3 Skip Rebase
@@ -1474,6 +1481,7 @@ function! s:Abort(type) abort
   endif
   cclose
   redraw | echo a:type . ' aborted'
+  call fugitive#ReloadStatus()
 endfunction
 
 "     {{{3 Stash Continue
@@ -1560,11 +1568,20 @@ function! s:Rename() abort
   let branch = s:branch_under_cursor()
   let new_name = input("Rename " . branch.fullname . " to: ", branch.fullname)
   redraw
+<<<<<<< HEAD
   if !empty(new_name)
 	  echo "Renaming \"" . branch.fullname . "\" to \"" . new_name . "\"... "
 	  call s:git_cmd("branch -m " . branch.fullname . " " . new_name, 0)
 	  call fugitive#ReloadStatus()
   endif
+||||||| parent of c14638c (feat: reload fugitive status after ops)
+  echo "Renaming \"" . branch.fullname . "\" to \"" . new_name . "\"... "
+  call s:git_cmd("branch -m " . branch.fullname . " " . new_name, 0)
+=======
+  echo "Renaming \"" . branch.fullname . "\" to \"" . new_name . "\"... "
+  call s:git_cmd("branch -m " . branch.fullname . " " . new_name, 0)
+  call fugitive#ReloadStatus()
+>>>>>>> c14638c (feat: reload fugitive status after ops)
 endfunction
 
 "     {{{3 Stash
