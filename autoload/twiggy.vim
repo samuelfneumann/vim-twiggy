@@ -1545,10 +1545,13 @@ function! s:Rename() abort
   let s:requires_buf_refresh = 0
 
   let branch = s:branch_under_cursor()
-  let new_name = input("Rename " . branch.fullname . " to: ")
+  let new_name = input("Rename " . branch.fullname . " to: ", branch.fullname)
   redraw
-  echo "Renaming \"" . branch.fullname . "\" to \"" . new_name . "\"... "
-  call s:git_cmd("branch -m " . branch.fullname . " " . new_name, 0)
+  if !empty(new_name)
+	  echo "Renaming \"" . branch.fullname . "\" to \"" . new_name . "\"... "
+	  call s:git_cmd("branch -m " . branch.fullname . " " . new_name, 0)
+	  call fugitive#ReloadStatus()
+  endif
 endfunction
 
 "     {{{3 Stash
