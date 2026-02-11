@@ -1580,20 +1580,11 @@ function! s:Rename() abort
   let branch = s:branch_under_cursor()
   let new_name = input("Rename " . branch.fullname . " to: ", branch.fullname)
   redraw
-<<<<<<< HEAD
   if !empty(new_name)
 	  echo "Renaming \"" . branch.fullname . "\" to \"" . new_name . "\"... "
 	  call s:git_cmd("branch -m " . branch.fullname . " " . new_name, 0)
 	  call fugitive#ReloadStatus()
   endif
-||||||| parent of c14638c (feat: reload fugitive status after ops)
-  echo "Renaming \"" . branch.fullname . "\" to \"" . new_name . "\"... "
-  call s:git_cmd("branch -m " . branch.fullname . " " . new_name, 0)
-=======
-  echo "Renaming \"" . branch.fullname . "\" to \"" . new_name . "\"... "
-  call s:git_cmd("branch -m " . branch.fullname . " " . new_name, 0)
-  call fugitive#ReloadStatus()
->>>>>>> c14638c (feat: reload fugitive status after ops)
 endfunction
 
 "     {{{3 Stash
