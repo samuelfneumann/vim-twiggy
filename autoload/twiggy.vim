@@ -111,13 +111,19 @@ endfunction
 
 " {{{1 System
 "   {{{2 cmd
-function! s:system(cmd, bg) abort
+function! s:system(cmd, bg, dispatch_opts={}) abort
   let command = a:cmd
 
   if a:bg
     if exists('g:loaded_dispatch') && g:loaded_dispatch &&
-          \ g:twiggy_use_dispatch
-      exec ':Dispatch ' . command
+          \ g:twiggy_use_dispatch 
+		if has_key(a:dispatch_opts, "no_dispatch") && a:dispatch_opts.no_dispatch
+			exec ":!" . command
+		elseif has_key(a:dispatch_opts, "use_start") && a:dispatch_opts.use_start
+		  exec ':Start ' . command
+		else
+		  exec ':Dispatch ' . command
+		endif
     else
       exec ':!' . command
     endif
@@ -151,13 +157,13 @@ function! s:gitize(cmd) abort
 endfunction
 
 "   {{{2 git_cmd
-function! s:git_cmd(cmd, bg) abort
+function! s:git_cmd(cmd, bg, dispatch_opts={}) abort
   let cmd = s:gitize(a:cmd)
   let s:git_cmd_run = 1
   if a:bg
-    call s:system(cmd, a:bg)
+    call s:system(cmd, a:bg, a:dispatch_opts)
   else
-    return s:system(cmd, a:bg)
+    return s:system(cmd, a:bg, a:dispatch_opts)
   endif
 endfunction
 
@@ -466,7 +472,7 @@ function! s:get_uniq_branch_names_from_reflog() abort
   let cmd.= "<(" . s:gitize('reflog') . " | awk -F\" \" '/checkout: moving from/ { print $8 }' | "
   let cmd.= "awk " . shellescape('!f[$0]++') . ")"
 
-  return s:system(cmd, 0)
+  return s:system(cmd, 0, 0)
 endfunction
 
 "   {{{2 get_merged_branches
@@ -481,7 +487,7 @@ function! s:get_by_commiter_date(type) abort
         \ "for-each-ref --sort=-committerdate --format='%(refname)' " .
         \ "refs/" . a:type . " | sed 's/refs\\/" .
         \ s:sub(a:type, '/', '\\/') . "\\///g'")
-  return s:system(cmd, 0)
+  return s:system(cmd, 0, 0)
 endfunction
 
 "   {{{2 update_last_branch_under_cursor
@@ -1443,13 +1449,16 @@ function! s:Continue(type) abort
   if a:type ==? 'stash'
       call s:ContinueStash()
   else
-    call s:git_cmd(a:type . ' --continue', 1)
+    call s:git_cmd(a:type . ' --continue', 1, {"no_dispatch": 1})
   endif
 endfunction
 
 "     {{{3 Skip Rebase
 function! s:Skip() abort
-  call s:git_cmd('rebase --skip', 1)
+  call s:git_cmd('rebase --skip', 1, {"no_dispatch": 1})
+
+  redraw
+  call fugitive#ReloadStatus()
 endfunction
 
 "     {{{3 Merge/Rebase/Cherry-Pick/Stash Abort
@@ -1465,7 +1474,7 @@ endfunction
 
 "     {{{3 Stash Continue
 function! s:ContinueStash() abort
-  call s:git_cmd('commit', 1)
+  call s:git_cmd('commit', 1, {"no_dispatch": 1})
 endfunction
 
 "     {{{3 Stash Abort
