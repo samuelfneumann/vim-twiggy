@@ -977,9 +977,12 @@ function! s:Render() abort
     autocmd!
     autocmd CursorMoved twiggy://* call s:show_branch_details()
     autocmd CursorMoved twiggy://* call s:update_last_branch_under_cursor()
-    autocmd BufReadPost,BufEnter twiggy://* call <SID>Refresh()
-    " autocmd BufReadPost,BufEnter fugitive://* call <SID>Refresh()
-	" autocmd User FugitiveChanged call <SID>Refresh() 
+	" autocmd User FugitiveChanged let t:branches_changed = 1
+	" autocmd CmdlineLeave * if exists("t:branches_changed") && t:branches_changed | let t:branches_changed = 0 | call <SID>Refresh() | endif
+	
+    autocmd CmdlineLeave * if histget(":", -1) =~ '\v^G(it)?\s+(fetch|pull|push|switch|checkout|branch)' | call <SID>Refresh() |let t:branches_changed = 1 | endif
+	autocmd User FugitiveChanged if exists("t:branches_changed") && t:branches_changed | let t:branches_changed = 0 | call <SID>Refresh() | endif
+
 	autocmd User WorktreeCheckout call <SID>Refresh() 
   augroup END
 
@@ -1168,28 +1171,37 @@ function! s:Refresh() abort
   endif
 
   let t:refreshing = 1
-  let t:switch_buff = 0
+
   if &filetype !=# 'twiggy'
-
-	" Store old buffer and cursor position in that buffer
-    let t:old_bufnr = bufnr('')
-	let t:line = line('.')
-	let t:col = col('.')
-	let t:switch_buff = 1
-
-	if exists('b:git_dir')
-		let t:twiggy_git_dir = b:git_dir
-	endif
+    if exists('b:git_dir')
+      let t:twiggy_git_dir = b:git_dir
+    endif
     let t:twiggy_git_cmd = FugitiveShellCommand()
-    call s:buffocus(t:twiggy_bufnr)
   endif
 
-  call s:Render()
+  let twiggy_winid = bufwinid(t:twiggy_bufnr)
 
-  if t:switch_buff
-	" Switch back to old cursor position in the previous buffer
-	call s:buffocus(t:old_bufnr)
-	call cursor(t:line, t:col)
+  if &filetype !=# 'twiggy' && exists('*win_execute') && twiggy_winid != -1
+    call win_execute(twiggy_winid, 'call s:Render()')
+  else
+    let t:switch_buff = 0
+    if &filetype !=# 'twiggy'
+      " Store old buffer and cursor position in that buffer
+      let t:old_bufnr = bufnr('')
+      let t:line = line('.')
+      let t:col = col('.')
+      let t:switch_buff = 1
+
+      call s:buffocus(t:twiggy_bufnr)
+    endif
+
+    call s:Render()
+
+    if t:switch_buff
+      " Switch back to old cursor position in the previous buffer
+      call s:buffocus(t:old_bufnr)
+      call cursor(t:line, t:col)
+    endif
   endif
 
   unlet t:refreshing
