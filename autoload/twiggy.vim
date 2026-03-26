@@ -1441,8 +1441,10 @@ function! s:Rebase(remote, autostash, interactive) abort
 	let gitcmd = "rebase "
   endif
 
+  let l:dispatch_opts = {}
   if a:interactive
 	  let gitcmd = l:gitcmd . "-i "
+	  let l:dispatch_opts["no_dispatch"] = 1
   endif
 
   if a:remote
@@ -1450,14 +1452,14 @@ function! s:Rebase(remote, autostash, interactive) abort
       let v:warningmsg = 'No tracking branch for ' . branch.name
       return 1
     else
-      call s:git_cmd(gitcmd . ' ' . branch.tracking, 1)
+      call s:git_cmd(gitcmd . ' ' . branch.tracking, 1, l:dispatch_opts)
     endif
   else
     if branch.fullname ==# s:get_current_branch()
       let v:warningmsg = 'Can''t rebase off of self'
       return 1
     else
-      call s:git_cmd(gitcmd . ' ' . branch.fullname, 1)
+      call s:git_cmd(gitcmd . ' ' . branch.fullname, 1, l:dispatch_opts)
     endif
   endif
 
