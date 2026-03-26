@@ -977,8 +977,13 @@ function! s:Render() abort
     autocmd!
     autocmd CursorMoved twiggy://* call s:show_branch_details()
     autocmd CursorMoved twiggy://* call s:update_last_branch_under_cursor()
-    autocmd BufReadPost,BufEnter,VimResized twiggy://* call <SID>Refresh()
-	" autocmd User FugitiveChanged call <SID>Refresh() 
+	" autocmd User FugitiveChanged let t:branches_changed = 1
+	" autocmd CmdlineLeave * if exists("t:branches_changed") && t:branches_changed | let t:branches_changed = 0 | call <SID>Refresh() | endif
+	
+    autocmd CmdlineLeave * if histget(":", -1) =~ '\v^G(it)?\s+(fetch|pull|push|switch|checkout|branch)' | call <SID>Refresh() |let t:branches_changed = 1 | endif
+	autocmd User FugitiveChanged if exists("t:branches_changed") && t:branches_changed | let t:branches_changed = 0 | call <SID>Refresh() | endif
+
+	autocmd User WorktreeCheckout call <SID>Refresh() 
   augroup END
 
   nnoremap <buffer> <silent> cf<space> :<C-U>G fetch<space>
@@ -989,13 +994,13 @@ function! s:Render() abort
   nnoremap <buffer> <silent> cs<space> :<C-U>G switch<space>
   nnoremap <buffer> <silent> cr<space> :<C-U>G rebase<space>
 
-  nnoremap <buffer> <silent> j      :<C-U>call <SID>traverse_branches('j')<CR>
-  nnoremap <buffer> <silent> k      :<C-U>call <SID>traverse_branches('k')<CR>
-  nnoremap <buffer> <silent> <Down> :<C-U>call <SID>traverse_branches('j')<CR>
-  nnoremap <buffer> <silent> <Up>   :<C-U>call <SID>traverse_branches('k')<CR>
-  nnoremap <buffer> <silent> <C-N>  :<C-U>call <SID>traverse_groups('j')<CR>
-  nnoremap <buffer> <silent> <C-P>  :<C-U>call <SID>traverse_groups('k')<CR>
-  nnoremap <buffer> <silent> J      :<C-U>call <SID>jump_to_current_branch()<CR>
+  nnoremap <buffer> <silent> j		<cmd>call <SID>traverse_branches('j')<CR>
+  nnoremap <buffer> <silent> k      <cmd>call <SID>traverse_branches('k')<CR>
+  nnoremap <buffer> <silent> <Down> <cmd>call <SID>traverse_branches('j')<CR>
+  nnoremap <buffer> <silent> <Up>   <cmd>call <SID>traverse_branches('k')<CR>
+  nnoremap <buffer> <silent> <C-N>  <cmd>call <SID>traverse_groups('j')<CR>
+  nnoremap <buffer> <silent> <C-P>  <cmd>call <SID>traverse_groups('k')<CR>
+  nnoremap <buffer> <silent> J      <cmd>call <SID>jump_to_current_branch()<CR>
   if s:showing_full_ui()
     nnoremap <buffer> <silent> gg    :normal! 4gg<CR>
   else
@@ -1161,31 +1166,42 @@ endfunction
 
 "     {{{3 Refresh
 function! s:Refresh() abort
-  if exists('t:refreshing') || !exists('t:twiggy_bufnr') || !exists('b:git_dir')
+  if exists('t:refreshing') || !exists('t:twiggy_bufnr') || (!exists('t:twiggy_git_dir') && !exists('b:git_dir'))
     return
   endif
 
   let t:refreshing = 1
-  let t:switch_buff = 0
+
   if &filetype !=# 'twiggy'
-
-	" Store old buffer and cursor position in that buffer
-    let t:old_bufnr = bufnr('')
-	let t:line = line('.')
-	let t:col = col('.')
-	let t:switch_buff = 1
-
-    let t:twiggy_git_dir = b:git_dir
+    if exists('b:git_dir')
+      let t:twiggy_git_dir = b:git_dir
+    endif
     let t:twiggy_git_cmd = FugitiveShellCommand()
-    call s:buffocus(t:twiggy_bufnr)
   endif
 
-  call s:Render()
+  let twiggy_winid = bufwinid(t:twiggy_bufnr)
 
-  if t:switch_buff
-	" Switch back to old cursor position in the previous buffer
-	call s:buffocus(t:old_bufnr)
-	call cursor(t:line, t:col)
+  if &filetype !=# 'twiggy' && exists('*win_execute') && twiggy_winid != -1
+    call win_execute(twiggy_winid, 'call s:Render()')
+  else
+    let t:switch_buff = 0
+    if &filetype !=# 'twiggy'
+      " Store old buffer and cursor position in that buffer
+      let t:old_bufnr = bufnr('')
+      let t:line = line('.')
+      let t:col = col('.')
+      let t:switch_buff = 1
+
+      call s:buffocus(t:twiggy_bufnr)
+    endif
+
+    call s:Render()
+
+    if t:switch_buff
+      " Switch back to old cursor position in the previous buffer
+      call s:buffocus(t:old_bufnr)
+      call cursor(t:line, t:col)
+    endif
   endif
 
   unlet t:refreshing
@@ -1304,6 +1320,8 @@ function! s:Checkout(track) abort
 
   doautocmd User TwiggyCheckout
 
+  call fugitive#ReloadStatus()
+
   return 0
 endfunction
 
@@ -1327,6 +1345,8 @@ function! s:CheckoutAs() abort
     let s:last_branch_under_cursor = 0
 
     doautocmd User TwiggyCheckout
+
+	call fugitive#ReloadStatus()
 
     return 0
   endif
@@ -1421,8 +1441,10 @@ function! s:Rebase(remote, autostash, interactive) abort
 	let gitcmd = "rebase "
   endif
 
+  let l:dispatch_opts = {}
   if a:interactive
 	  let gitcmd = l:gitcmd . "-i "
+	  let l:dispatch_opts["no_dispatch"] = 1
   endif
 
   if a:remote
@@ -1430,14 +1452,14 @@ function! s:Rebase(remote, autostash, interactive) abort
       let v:warningmsg = 'No tracking branch for ' . branch.name
       return 1
     else
-      call s:git_cmd(gitcmd . ' ' . branch.tracking, 1)
+      call s:git_cmd(gitcmd . ' ' . branch.tracking, 1, l:dispatch_opts)
     endif
   else
     if branch.fullname ==# s:get_current_branch()
       let v:warningmsg = 'Can''t rebase off of self'
       return 1
     else
-      call s:git_cmd(gitcmd . ' ' . branch.fullname, 1)
+      call s:git_cmd(gitcmd . ' ' . branch.fullname, 1, l:dispatch_opts)
     endif
   endif
 
@@ -1451,6 +1473,9 @@ function! s:Continue(type) abort
   else
     call s:git_cmd(a:type . ' --continue', 1, {"no_dispatch": 1})
   endif
+
+  redraw
+  call fugitive#ReloadStatus()
 endfunction
 
 "     {{{3 Skip Rebase
@@ -1470,6 +1495,7 @@ function! s:Abort(type) abort
   endif
   cclose
   redraw | echo a:type . ' aborted'
+  call fugitive#ReloadStatus()
 endfunction
 
 "     {{{3 Stash Continue
