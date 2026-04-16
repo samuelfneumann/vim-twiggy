@@ -626,6 +626,7 @@ function! s:quickhelp_view() abort
     call add(output, 'gL    git log `..`')
   endif
   call add(output, ',     rename')
+  call add(output, 'yy    yank <branch>')
   call add(output, 'dd    delete')
   if g:twiggy_enable_remote_delete
     call add(output, 'dP    delete from server')
@@ -1015,6 +1016,7 @@ function! s:Render() abort
   call s:mapping('gc',      'CheckoutAs',       [])
   call s:mapping('go',      'CheckoutAs',       [])
   call s:mapping('dd',      'Delete',           [])
+  call s:mapping('yy',      'Yank',	            [])
   call s:mapping('F',       'Fetch',            [0]) " deprecated
   call s:mapping('f',       'Fetch',            [0])
   call s:mapping('m',       'Merge',            [0, ''])
@@ -1353,6 +1355,15 @@ function! s:CheckoutAs() abort
 
   return 1
 endfunction
+
+
+"     {{{3 Yank
+function! s:Yank() abort
+  let branch = s:branch_under_cursor()
+  let reg = empty(v:register) ? '"' : v:register
+  call setreg(reg, branch.fullname)
+endfunction
+
 
 "     {{{3 Delete
 function! s:Delete() abort
