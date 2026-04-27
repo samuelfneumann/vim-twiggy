@@ -790,34 +790,56 @@ endfunction
 " {{{1 Plugin
 "   {{{2 Navigation
 "     {{{3 traverse_branches
-function! s:traverse_branches(motion) abort
-  execute "normal! " . a:motion
-  let current_line = line('.')
-  let border_line = s:showing_full_ui() ? 3 : 1
-  if current_line ==# s:total_lines && a:motion ==# 'j'
-    return
-  elseif (a:motion ==# 'k' && current_line <=# border_line)
-    normal! j
-  else
-    while getline('.') =~# '\v^[A-Za-z]' || getline('.') ==# ''
-      execute "normal! " . a:motion
-    endwhile
-  end
+function! s:traverse_branches(motion, count=1) abort
+  for _ in range(a:count)
+	  execute "normal! " . a:motion
+	  let current_line = line('.')
+
+	  let border_line = s:showing_full_ui() ? 3 : 1
+	  if current_line ==# s:total_lines && a:motion ==# 'j'
+		return
+	  elseif (a:motion ==# 'k' && current_line <=# border_line)
+		normal! j
+	  else
+		while getline('.') =~# '\v^[A-Za-z]' || getline('.') ==# ''
+		  execute "normal! " . a:motion
+		endwhile
+	  end
+  endfor
 endfunction
 
 "     {{{3 traverse_groups
-function! s:traverse_groups(motion) abort
-  if a:motion ==# 'j'
-    if search('\v^[A-Za-z]', 'W')
-      normal! j
-    end
-  elseif a:motion ==# 'k'
-    if search('\v^[A-Za-z]', 'bW')
-      call search('\v^[A-Za-z]', 'bW')
-      normal! j
-    endif
-  endif
+function! s:traverse_groups(motion, end=0, count=1) abort
+  for _ in range(a:count)
+	  if a:motion ==# 'j'
+		if a:end
+			call s:traverse_branches('j')
+			if search('\v(^[A-Za-z])', 'W')
+			  call s:traverse_branches('k')
+			else
+				normal! G
+				" call s:traverse_branches('k')
+			endif
+		else
+			if search('\v^[A-Za-z]', 'W')
+			  normal! j
+			endif
+		endif
+	  elseif a:motion ==# 'k'
+		if a:end
+			if search('\v^[A-Za-z]', 'bW')
+			  call s:traverse_branches('k')
+			endif
+		else
+			call s:traverse_branches('k')
+			if search('\v^[A-Za-z]', 'bW')
+			  call s:traverse_branches('j')
+			endif
+		endif
+	  endif
+  endfor
 endfunction
+
 
 "     {{{3 jump_to_current_branch
 function! s:jump_to_current_branch() abort
@@ -995,12 +1017,19 @@ function! s:Render() abort
   nnoremap <buffer> <silent> cs<space> :<C-U>G switch<space>
   nnoremap <buffer> <silent> cr<space> :<C-U>G rebase<space>
 
-  nnoremap <buffer> <silent> j		<cmd>call <SID>traverse_branches('j')<CR>
-  nnoremap <buffer> <silent> k      <cmd>call <SID>traverse_branches('k')<CR>
-  nnoremap <buffer> <silent> <Down> <cmd>call <SID>traverse_branches('j')<CR>
-  nnoremap <buffer> <silent> <Up>   <cmd>call <SID>traverse_branches('k')<CR>
-  nnoremap <buffer> <silent> <C-N>  <cmd>call <SID>traverse_groups('j')<CR>
-  nnoremap <buffer> <silent> <C-P>  <cmd>call <SID>traverse_groups('k')<CR>
+  " These need v:count
+  nnoremap <buffer> <silent> )		<cmd>call <SID>traverse_branches('j', v:count1)<CR>
+  nnoremap <buffer> <silent> (      <cmd>call <SID>traverse_branches('k', v:count1)<CR>
+  nnoremap <buffer> <silent> j		<cmd>call <SID>traverse_branches('j', v:count1)<CR>
+  nnoremap <buffer> <silent> k      <cmd>call <SID>traverse_branches('k', v:count1)<CR>
+  nnoremap <buffer> <silent> <Down> <cmd>call <SID>traverse_branches('j', v:count1)<CR>
+  nnoremap <buffer> <silent> <Up>   <cmd>call <SID>traverse_branches('k', v:count1)<CR>
+  nnoremap <buffer> <silent> ][  <cmd>call <SID>traverse_groups('j', 1, v:count1)<CR>
+  nnoremap <buffer> <silent> []  <cmd>call <SID>traverse_groups('k', 1, v:count1)<CR>
+  nnoremap <buffer> <silent> ]]  <cmd>call <SID>traverse_groups('j', 0, v:count1)<CR>
+  nnoremap <buffer> <silent> [[  <cmd>call <SID>traverse_groups('k', 0, v:count1)<CR>
+  nnoremap <buffer> <silent> <C-N>  <cmd>call <SID>traverse_groups('j', 0, v:count1)<CR>
+  nnoremap <buffer> <silent> <C-P>  <cmd>call <SID>traverse_groups('k', 0, v:count1)<CR>
   nnoremap <buffer> <silent> J      <cmd>call <SID>jump_to_current_branch()<CR>
   if s:showing_full_ui()
     nnoremap <buffer> <silent> gg    :normal! 4gg<CR>
