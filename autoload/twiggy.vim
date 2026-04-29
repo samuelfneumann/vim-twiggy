@@ -248,6 +248,7 @@ function! s:parse_branch(branch, type) abort
       let group = matchstr(branch.fullname, '\v[^/]*')
       let branch.group = group
       let branch.name = s:sub(branch.fullname, group . '/', '')
+      let branch.display_name = "(l)" . branch.fullname
     else
       let branch.group = 'local'
       let branch.name = branch.fullname
@@ -262,10 +263,15 @@ function! s:parse_branch(branch, type) abort
       let group = matchstr(branch.name, '\v[^/]*')
       let branch.group = join([branch_split[0], group], '/')
       let branch.name = s:sub(branch.name, group . '/', '')
+      let branch.display_name = '(r)' . branch.fullname
     else
       let branch.group = branch_split[0]
       let branch.name  = join(branch_split[1:], '/')
     endif
+  endif
+
+  if !has_key(branch, 'display_name')
+	  let branch.display_name = branch.name
   endif
 
   let remote_details = pieces[3]
@@ -555,7 +561,7 @@ function! s:standard_view() abort
       call add(output, group_ref.name . ' [' . sort_name . ']')
 
       for branch in group_ref['branches']
-        call add(output, branch.decoration . branch.name)
+        call add(output, branch.decoration . get(branch, 'display_name', branch.name))
         let line = line + 1
         let branch.line = line
         let s:branch_line_refs[line] = branch
@@ -1104,9 +1110,66 @@ function! s:Render() abort
 
   exec "syntax match TwiggyGroup '\\v(^[^\\ " . s:icons.current . "]+)'"
   highlight default link TwiggyGroup Type
+  
+    hi def link TwiggySlash Comment
+    hi def link TwiggySlashPrefix Comment
+    hi def link TwiggySlashCurrentPrefix Comment
+    hi def link TwiggySlashCurrentName TwiggyCurrent
+    highlight default link TwiggySlashCurrent Identifier
+	" highlight link TwiggySlashBranchName Normal
 
-  exec "syntax match TwiggyCurrent '\\v%3v" . s:get_current_branch() . "$'"
+  " ────────────────────────────────────────────────────────────────────────
+  " Conceal slash prefix
+  " ────────────────────────────────────────────────────────────────────────
+  function! ConcealSlashBranches(current, conceal_local, conceal_remote)
+    syntax clear TwiggySlash
+    syntax clear TwiggySlashPrefix
+    syntax clear TwiggySlashCurrent
+    syntax clear TwiggySlashCurrentPrefix
+    syntax clear TwiggySlashCurrentName
+
+	let slash_prefix = ''
+	if a:conceal_local && a:conceal_remote
+		let slash_prefix = '([lr])'
+	elseif a:conceal_local
+		let slash_prefix = '(l)'
+	elseif a:conceal_remote
+		let slash_prefix = '(r)'
+	endif
+
+	execute('syntax region TwiggySlash start=/\v' . escape(slash_prefix, '()') . '[-_[:alnum:].]+\// end=/\v[()-_[:alnum:].\/]+/ contains=TwiggySlashPrefix,TwiggySlashBranchPrefix,TwiggySlashBranchName oneline')
+
+	syntax match TwiggySlashBranchName   /\v[-_[:alnum:].\/]+/ contained
+	syntax match TwiggySlashBranchPrefix /\v[-_[:alnum:].]+\// contained conceal
+
+    let parts = split(a:current, '/')
+    if len(parts) < 2
+      return
+    endif
+  
+    let prefix = parts[0] .. '/'
+    let name = join(parts[1 :], '/')
+
+	if a:conceal_local
+		execute('syntax match TwiggySlashCurrent /\v' .. escape(slash_prefix, '()') .. escape(a:current, '\/\') .. '/ contains=TwiggySlashPrefix,TwiggySlashCurrentPrefix,TwiggySlashCurrentName')
+		execute('syntax match TwiggySlashCurrentPrefix /\V' .. escape(prefix, '\/\') .. '/ contained conceal nextgroup=TwiggySlashCurrentName')
+		execute('syntax match TwiggySlashCurrentName /\V' .. escape(name, '\/\') .. '/ contained')
+	endif
+
+	echom 'syntax match TwiggySlashPrefix /\v' . escape(slash_prefix, '()') . '/ contained conceal'
+	execute('syntax match TwiggySlashPrefix /\v' . escape(slash_prefix, '()') . '/ contained conceal')
+  
+    let &l:conceallevel = 2
+    let &l:concealcursor = 'nvic'
+  endfunction
+
+  let current_branch = s:get_current_branch()
+  exec "syntax match TwiggyCurrent '\\v%3v" . current_branch . "$'"
   highlight default link TwiggyCurrent Identifier
+
+  if g:twiggy_group_locals_by_slash || g:twiggy_group_remotes_by_slash
+	  call ConcealSlashBranches(current_branch, g:twiggy_group_locals_by_slash, g:twiggy_group_remotes_by_slash)
+  endif
 
   exec "syntax match TwiggyCurrent '\\V\\%1c" . s:icons.current . "'"
   highlight default link TwiggyCurrent Identifier
