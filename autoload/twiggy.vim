@@ -1127,7 +1127,16 @@ function! s:Render() abort
 
   " ────────────────────────────────────────────────────────────────────────
   " Conceal slash prefix
+  "
+  " TODO: this still relies on TwiggyCurrent when there is no slash in the
+  " name!
+  "
+  " TODO: this only implements rendering branches for slash sorting, we need to
+  " implement it for non-slash sorting too
   " ────────────────────────────────────────────────────────────────────────
+  let &l:conceallevel = 2
+  let &l:concealcursor = 'nvic'
+
   function! ConcealSlashBranches(current, current_remote, conceal_local, conceal_remote)
     syntax clear TwiggySlash
     syntax clear TwiggySlashPrefix
@@ -1144,10 +1153,13 @@ function! s:Render() abort
 		let slash_prefix = '(r)'
 	endif
 
-	execute('syntax region TwiggySlash start=/\v' . escape(slash_prefix, '()') . '[-_[:alnum:].]+\// end=/\v[()-_[:alnum:].\/]+/ contains=TwiggySlashPrefix,TwiggySlashBranchPrefix,TwiggySlashBranchName oneline')
+	execute('syntax region TwiggySlash start=/\v' . escape(slash_prefix, '()') . '[-_[:alnum:].]+\// end=/\v[()-_[:alnum:].\/]+/ contains=TwiggySlashBranchPrefix,TwiggySlashBranchName oneline')
 
+	" local
+	syntax match TwiggySlashBranchPrefix /\v\(l\)[-_[:alnum:].]+\// contained conceal nextgroup=TwiggySlashBranchName contains=TwiggySlashPrefix
+	" remote
+	syntax match TwiggySlashBranchPrefix /\v\(r\)[-_[:alnum:].]+\/[-_[:alnum:].]+\// contained conceal nextgroup=TwiggySlashBranchName contains=TwiggySlashPrefix
 	syntax match TwiggySlashBranchName   /\v[-_[:alnum:].\/]+/ contained
-	syntax match TwiggySlashBranchPrefix /\v[-_[:alnum:].]+\// contained conceal
   
 	if a:conceal_local && !empty(a:current)
 		let parts = split(a:current, '/')
@@ -1156,8 +1168,8 @@ function! s:Render() abort
 		let prefix = parts[0] .. '/'
 		let name = join(parts[1 :], '/')
 
-		execute('syntax match TwiggySlashCurrent /\v' .. escape(slash_prefix, '()') .. escape(a:current, '\/\') .. '/ contains=TwiggySlashPrefix,TwiggySlashCurrentPrefix,TwiggySlashCurrentName')
-		execute('syntax match TwiggySlashCurrentPrefix /\V' .. escape(prefix, '\/\') .. '/ contained conceal nextgroup=TwiggySlashCurrentName')
+		execute('syntax match TwiggySlashCurrent /\v\(l\)' .. escape(a:current, '\/\') .. '/ contains=TwiggySlashCurrentPrefix,TwiggySlashCurrentName')
+		execute('syntax match TwiggySlashCurrentPrefix /\V(l)' .. escape(prefix, '\/\') .. '/ contained conceal contains=TwiggySlashPrefix nextgroup=TwiggySlashCurrentName')
 		execute('syntax match TwiggySlashCurrentName /\V' .. escape(name, '\/\') .. '/ contained')
 	endif
 
@@ -1168,16 +1180,15 @@ function! s:Render() abort
 		let prefix = join(parts[0 : 1], '/') .. '/'
 		let name = join(parts[2 :], '/')
 
-		execute('syntax match TwiggySlashCurrent /\v' .. escape(slash_prefix, '()') .. escape(a:current_remote, '\/\') .. '/ contains=TwiggySlashPrefix,TwiggySlashCurrentPrefix,TwiggySlashCurrentName')
-		execute('syntax match TwiggySlashCurrentPrefix /\V' .. escape(prefix, '\/\') .. '/ contained conceal nextgroup=TwiggySlashCurrentName')
+		" TODO: name clashing with local conceals above!
+		execute('syntax match TwiggySlashCurrent /\v\(r\)' .. escape(a:current_remote, '\/\') .. '/ contains=TwiggySlashCurrentPrefix,TwiggySlashCurrentName')
+		execute('syntax match TwiggySlashCurrentPrefix /\V(r)' .. escape(prefix, '\/\') .. '/ contained conceal contains=TwiggySlashPrefix nextgroup=TwiggySlashCurrentName')
 		execute('syntax match TwiggySlashCurrentName /\V' .. escape(name, '\/\') .. '/ contained')
 	endif
 
 	echom 'syntax match TwiggySlashPrefix /\v' . escape(slash_prefix, '()') . '/ contained conceal'
 	execute('syntax match TwiggySlashPrefix /\v' . escape(slash_prefix, '()') . '/ contained conceal')
   
-    let &l:conceallevel = 2
-    let &l:concealcursor = 'nvic'
   endfunction
 
   " TODO: this will highlight remote branches of the same name, even if they
