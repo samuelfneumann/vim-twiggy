@@ -447,6 +447,13 @@ function! s:get_current_branch() abort
   return s:git_cmd('rev-parse --abbrev-ref HEAD', 0)[0]
 endfunction
 
+"   {{{2 get_current_branch_remote
+function! s:get_current_branch_remote() abort
+  let remote = s:git_cmd('rev-parse --abbrev-ref --symbolic-full-name @{u} 2>/dev/null', 0)
+  if empty(remote) | return "" | endif
+  return remote[0]
+endfunction
+
 "   {{{2 branch_exists
 function! s:branch_exists(branch) abort
   call s:git_cmd('show-ref --verify --quiet refs/heads/' . a:branch, 0)
@@ -1121,7 +1128,7 @@ function! s:Render() abort
   " ────────────────────────────────────────────────────────────────────────
   " Conceal slash prefix
   " ────────────────────────────────────────────────────────────────────────
-  function! ConcealSlashBranches(current, conceal_local, conceal_remote)
+  function! ConcealSlashBranches(current, current_remote, conceal_local, conceal_remote)
     syntax clear TwiggySlash
     syntax clear TwiggySlashPrefix
     syntax clear TwiggySlashCurrent
@@ -1141,17 +1148,27 @@ function! s:Render() abort
 
 	syntax match TwiggySlashBranchName   /\v[-_[:alnum:].\/]+/ contained
 	syntax match TwiggySlashBranchPrefix /\v[-_[:alnum:].]+\// contained conceal
-
-    let parts = split(a:current, '/')
-    if len(parts) < 2
-      return
-    endif
   
-    let prefix = parts[0] .. '/'
-    let name = join(parts[1 :], '/')
+	if a:conceal_local && !empty(a:current)
+		let parts = split(a:current, '/')
+		if len(parts) < 2 | return | endif
 
-	if a:conceal_local
+		let prefix = parts[0] .. '/'
+		let name = join(parts[1 :], '/')
+
 		execute('syntax match TwiggySlashCurrent /\v' .. escape(slash_prefix, '()') .. escape(a:current, '\/\') .. '/ contains=TwiggySlashPrefix,TwiggySlashCurrentPrefix,TwiggySlashCurrentName')
+		execute('syntax match TwiggySlashCurrentPrefix /\V' .. escape(prefix, '\/\') .. '/ contained conceal nextgroup=TwiggySlashCurrentName')
+		execute('syntax match TwiggySlashCurrentName /\V' .. escape(name, '\/\') .. '/ contained')
+	endif
+
+	if a:conceal_remote && !empty(a:current_remote)
+		let parts = split(a:current_remote, '/')
+		if len(parts) < 3 | return | endif
+
+		let prefix = join(parts[0 : 1], '/') .. '/'
+		let name = join(parts[2 :], '/')
+
+		execute('syntax match TwiggySlashCurrent /\v' .. escape(slash_prefix, '()') .. escape(a:current_remote, '\/\') .. '/ contains=TwiggySlashPrefix,TwiggySlashCurrentPrefix,TwiggySlashCurrentName')
 		execute('syntax match TwiggySlashCurrentPrefix /\V' .. escape(prefix, '\/\') .. '/ contained conceal nextgroup=TwiggySlashCurrentName')
 		execute('syntax match TwiggySlashCurrentName /\V' .. escape(name, '\/\') .. '/ contained')
 	endif
@@ -1163,12 +1180,15 @@ function! s:Render() abort
     let &l:concealcursor = 'nvic'
   endfunction
 
+  " TODO: this will highlight remote branches of the same name, even if they
+  " are not tracked by the current branch!
   let current_branch = s:get_current_branch()
+  let current_branch_remote = s:get_current_branch_remote()
   exec "syntax match TwiggyCurrent '\\v%3v" . current_branch . "$'"
   highlight default link TwiggyCurrent Identifier
 
   if g:twiggy_group_locals_by_slash || g:twiggy_group_remotes_by_slash
-	  call ConcealSlashBranches(current_branch, g:twiggy_group_locals_by_slash, g:twiggy_group_remotes_by_slash)
+	  call ConcealSlashBranches(current_branch, current_branch_remote, g:twiggy_group_locals_by_slash, g:twiggy_group_remotes_by_slash)
   endif
 
   exec "syntax match TwiggyCurrent '\\V\\%1c" . s:icons.current . "'"
