@@ -288,6 +288,7 @@ function! s:parse_branch(branch, type) abort
     let branch.details = join([pieces[2], remote_details, pieces[5]], ' ')
   endif
 
+  if empty(branch.name) | return {} | endif
   return branch
 endfunction
 
@@ -314,7 +315,10 @@ function! s:_git_branch_vv(type) abort
         \ '%(contents:subject)',
         \ ], "\t\t")
   for branch in s:git_cmd('for-each-ref refs/' . a:type . " --format=$'".format."'", 0)
-    call add(branches, s:parse_branch(branch, a:type))
+	let parsed = s:parse_branch(branch, a:type)
+	if !empty(parsed) && !empty(parsed.name)
+		call add(branches, parsed)
+	endif
   endfor
 
   return branches
@@ -530,6 +534,8 @@ function! s:standard_view() abort
 
   let branches = twiggy#get_branches()
   for branch in branches
+	if empty(branch.name) | continue | endif
+
     if !has_key(groups[branch.type], branch.group)
       let groups[branch.type][branch.group] = {}
       if branch.group ==# 'local'
