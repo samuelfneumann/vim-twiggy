@@ -268,6 +268,7 @@ function! s:parse_branch(branch, type) abort
     else
       let branch.group = branch_split[0]
       let branch.name  = join(branch_split[1:], '/')
+      let branch.display_name = '(r)' . branch.fullname
     endif
   endif
 
@@ -1178,23 +1179,31 @@ function! s:Render() abort
  
 	if a:conceal_local && !empty(a:current)
 		let parts = split(a:current, '/')
-		if len(parts) < 2 | return | endif
+		if len(parts) < 2 
+			execute("syntax match TwiggySlashCurrent '\\v\\(l\\)" . a:current . "$' contains=TwiggySlashCurrentPrefix,TwiggySlashCurrentName")
+			syntax match TwiggySlashCurrentPrefix /\V(l)/ contained conceal contains=TwiggySlashPrefix nextgroup=TwiggySlashCurrentName
+			execute('syntax match TwiggySlashCurrentName /\V' .. a:current .. '/ contained')
+		else
+			execute('syntax match TwiggySlashCurrent /\v\(l\)' .. escape(a:current, '\/\') .. '/ contains=TwiggySlashCurrentPrefix,TwiggySlashCurrentName')
 
-		let prefix = parts[0] .. '/'
-		let name = join(parts[1 :], '/')
+			let prefix = parts[0] .. '/'
+			let name = join(parts[1 :], '/')
 
-	    " TODO exec "syntax match TwiggySlashCurrent '\\v%6v" . a:conceal_local . "$'"
-		execute('syntax match TwiggySlashCurrent /\v\(l\)' .. escape(a:current, '\/\') .. '/ contains=TwiggySlashCurrentPrefix,TwiggySlashCurrentName')
-		execute('syntax match TwiggySlashCurrentPrefix /\V(l)' .. escape(prefix, '\/\') .. '/ contained conceal contains=TwiggySlashPrefix nextgroup=TwiggySlashCurrentName')
-		execute('syntax match TwiggySlashCurrentName /\V' .. escape(name, '\/\') .. '/ contained')
+			execute('syntax match TwiggySlashCurrent /\v\(l\)' .. escape(a:current, '\/\') .. '/ contains=TwiggySlashCurrentPrefix,TwiggySlashCurrentName')
+			execute('syntax match TwiggySlashCurrentPrefix /\V(l)' .. escape(prefix, '\/\') .. '/ contained conceal contains=TwiggySlashPrefix nextgroup=TwiggySlashCurrentName')
+			execute('syntax match TwiggySlashCurrentName /\V' .. escape(name, '\/\') .. '/ contained')
+		endif
 	endif
 
 	if a:conceal_remote && !empty(a:current_remote)
 		let parts = split(a:current_remote, '/')
-		if len(parts) < 3 | return | endif
-
-		let prefix = join(parts[0 : 1], '/') .. '/'
-		let name = join(parts[2 :], '/')
+		if len(parts) < 3 
+			let prefix = parts[0] .. '/'
+			let name = join(parts[1 :], '/')
+		else
+			let prefix = join(parts[0 : 1], '/') .. '/'
+			let name = join(parts[2 :], '/')
+		endif
 
 		execute('syntax match TwiggySlashCurrentRemote /\v\(r\)' .. escape(a:current_remote, '\/\') .. '/ contains=TwiggySlashCurrentRemotePrefix,TwiggySlashCurrentRemoteName')
 		execute('syntax match TwiggySlashCurrentRemotePrefix /\V(r)' .. escape(prefix, '\/\') .. '/ contained conceal contains=TwiggySlashPrefix nextgroup=TwiggySlashCurrentRemoteName')
