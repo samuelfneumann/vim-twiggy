@@ -1174,7 +1174,7 @@ function! s:Render() abort
 
 	" remote: match either (r)remote/prefix/name or (r)
 	syntax match TwiggySlashRemoteBranchPrefix /\v\(r\)/ contained conceal nextgroup=TwiggySlashRemoteBranchName contains=TwiggySlashPrefix
-	syntax match TwiggySlashRemoteBranchPrefix /\v\(r\)[-_[:alnum:].]+\/[-_[:alnum:].]+\// contained conceal nextgroup=TwiggySlashRemoteBranchName contains=TwiggySlashPrefix
+	syntax match TwiggySlashRemoteBranchPrefix /\v\(r\)([-_[:alnum:].]+\/){1,2}/ contained conceal nextgroup=TwiggySlashRemoteBranchName contains=TwiggySlashPrefix
 	syntax match TwiggySlashRemoteBranchName   /\v[-_[:alnum:].\/]+/ contained
  
 	if a:conceal_local && !empty(a:current)
@@ -1184,8 +1184,6 @@ function! s:Render() abort
 			syntax match TwiggySlashCurrentPrefix /\V(l)/ contained conceal contains=TwiggySlashPrefix nextgroup=TwiggySlashCurrentName
 			execute('syntax match TwiggySlashCurrentName /\V' .. a:current .. '/ contained')
 		else
-			execute('syntax match TwiggySlashCurrent /\v\(l\)' .. escape(a:current, '\/\') .. '/ contains=TwiggySlashCurrentPrefix,TwiggySlashCurrentName')
-
 			let prefix = parts[0] .. '/'
 			let name = join(parts[1 :], '/')
 
@@ -1193,6 +1191,10 @@ function! s:Render() abort
 			execute('syntax match TwiggySlashCurrentPrefix /\V(l)' .. escape(prefix, '\/\') .. '/ contained conceal contains=TwiggySlashPrefix nextgroup=TwiggySlashCurrentName')
 			execute('syntax match TwiggySlashCurrentName /\V' .. escape(name, '\/\') .. '/ contained')
 		endif
+	elseif !a:conceal_local && !empty(a:current)
+		execute('syntax match TwiggySlashCurrent /\v\(l\)' .. escape(a:current, '\/\') .. '/ contains=TwiggySlashCurrentPrefix,TwiggySlashCurrentName')
+		syntax match TwiggySlashCurrentPrefix /\V(l)/ contained conceal contains=TwiggySlashPrefix nextgroup=TwiggySlashCurrentName
+		execute('syntax match TwiggySlashCurrentName /\V' .. escape(a:current, '\/\') .. '/ contained')
 	endif
 
 	if a:conceal_remote && !empty(a:current_remote)
@@ -1208,6 +1210,14 @@ function! s:Render() abort
 		execute('syntax match TwiggySlashCurrentRemote /\v\(r\)' .. escape(a:current_remote, '\/\') .. '/ contains=TwiggySlashCurrentRemotePrefix,TwiggySlashCurrentRemoteName')
 		execute('syntax match TwiggySlashCurrentRemotePrefix /\V(r)' .. escape(prefix, '\/\') .. '/ contained conceal contains=TwiggySlashPrefix nextgroup=TwiggySlashCurrentRemoteName')
 		execute('syntax match TwiggySlashCurrentRemoteName /\V' .. escape(name, '\/\') .. '/ contained')
+	elseif !a:conceal_remote && !empty(a:current_remote)
+		let parts = split(a:current_remote, '/')
+		let prefix = parts[0] .. '/'
+		let name = join(parts[1 :], '/')
+
+		execute('syntax match TwiggySlashCurrentRemote /\v\(r\)' .. escape(a:current_remote, '\/\') .. '/ contains=TwiggySlashCurrentRemotePrefix,TwiggySlashCurrentRemoteName')
+		execute('syntax match TwiggySlashCurrentRemotePrefix /\V(r)' .. escape(prefix, '\/\') .. '/ contained conceal contains=TwiggySlashPrefix nextgroup=TwiggySlashCurrentRemoteName')
+		execute('syntax match TwiggySlashCurrentRemoteName /\V' .. escape(name, '\/\') .. '/ contained')
 	endif
 
 	" execute('syntax match TwiggySlashPrefix /\v' . escape(slash_prefix, '()') . '/ contained conceal')
@@ -1216,17 +1226,9 @@ function! s:Render() abort
   
   endfunction
 
-  " TODO: this will highlight remote branches of the same name, even if they
-  " are not tracked by the current branch!
   let current_branch = s:get_current_branch()
   let current_branch_remote = s:get_current_branch_remote()
-
-  if g:twiggy_group_locals_by_slash || g:twiggy_group_remotes_by_slash
-	  call ConcealSlashBranches(current_branch, current_branch_remote, g:twiggy_group_locals_by_slash, g:twiggy_group_remotes_by_slash)
-  else
-	  exec "syntax match TwiggyCurrent '\\v%3v" . current_branch . "$'"
-	  highlight default link TwiggyCurrent Identifier
-  endif
+  call ConcealSlashBranches(current_branch, current_branch_remote, g:twiggy_group_locals_by_slash, g:twiggy_group_remotes_by_slash)
 
   exec "syntax match TwiggyCurrent '\\V\\%1c" . s:icons.current . "'"
   highlight default link TwiggyCurrent Identifier
