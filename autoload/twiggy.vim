@@ -1120,81 +1120,58 @@ function! s:Render() abort
   exec "syntax match TwiggyGroup '\\v(^[^\\ " . s:icons.current . "]+)'"
   highlight default link TwiggyGroup Type
   
-    hi def link TwiggySlash Comment
-    hi def link TwiggyRemoteSlash Comment
-    hi def link TwiggySlashPrefix Comment
-    hi def link TwiggySlashCurrentPrefix Comment
-    hi def link TwiggySlashCurrentName TwiggyCurrent
-    hi def link TwiggySlashCurrentRemoteName TwiggyCurrent
-    highlight default link TwiggySlashCurrent Identifier
-	" highlight link TwiggySlashBranchName Normal
+  highlight default link TwiggyBranch Comment
+  highlight default link TwiggyRemoteBranch Comment
+  highlight default link TwiggyBranchPrefix Comment
+  highlight default link TwiggyBranchCurrentPrefix Comment
+  highlight default link TwiggyBranchCurrentName TwiggyCurrent
+  highlight default link TwiggyBranchCurrentRemoteName TwiggyCurrent
+  highlight default link TwiggyBranchCurrent Identifier
 
   " ────────────────────────────────────────────────────────────────────────
-  " Conceal slash prefix
-  "
-  " TODO: this still relies on TwiggyCurrent when there is no slash in the
-  " name!
-  "
-  " TODO: this only implements rendering branches for slash sorting, we need to
-  " implement it for non-slash sorting too
+  " Render Branches w/ and w/o slash sorting
   " ────────────────────────────────────────────────────────────────────────
   let &l:conceallevel = 2
   let &l:concealcursor = 'nvic'
+  function! RenderBranches(current, current_remote, conceal_local, conceal_remote)
+    syntax clear TwiggyBranch
+    syntax clear TwiggyRemoteBranch
+    syntax clear TwiggyBranchPrefix
+    syntax clear TwiggyBranchCurrent
+    syntax clear TwiggyBranchCurrentPrefix
+    syntax clear TwiggyBranchCurrentName
 
-  function! ConcealSlashBranches(current, current_remote, conceal_local, conceal_remote)
-    syntax clear TwiggySlash
-    syntax clear TwiggyRemoteSlash
-    syntax clear TwiggySlashPrefix
-    syntax clear TwiggySlashCurrent
-    syntax clear TwiggySlashCurrentPrefix
-    syntax clear TwiggySlashCurrentName
-
-	" let slash_prefix = ''
-	" if a:conceal_local && a:conceal_remote
-	" 	let slash_prefix = '([lr])'
-	" 	let slash_prefix_very_nomagic = '(l\|r)'
-	" elseif a:conceal_local
-	" 	let slash_prefix = '(l)'
-	" 	let slash_prefix_very_nomagic = slash_prefix
-	" elseif a:conceal_remote
-	" 	let slash_prefix = '(r)'
-	" 	let slash_prefix_very_nomagic = slash_prefix
-	" endif
-
-	" execute('syntax region TwiggySlash start=/\v' . escape(slash_prefix, '()') . '[-_[:alnum:].]+\// end=/\v[()-_[:alnum:].\/]+/ contains=TwiggySlashBranchPrefix,TwiggySlashBranchName oneline')
-	" execute('syntax region TwiggySlash start=/\V' . slash_prefix_very_nomagic . '/ end=/\v\S+/ contains=TwiggySlashBranchPrefix,TwiggySlashBranchName,TwiggySlashRemoteBranchPrefix,TwiggySlashRemoteBranchName oneline')
-	" syntax region TwiggySlash start=/\v\([lr]\)/ end=/\v\S+/ contains=TwiggySlashBranchPrefix,TwiggySlashBranchName,TwiggySlashRemoteBranchPrefix,TwiggySlashRemoteBranchName oneline
-	syntax region TwiggySlash start=/\v\(l\)/ end=/\v\S+/ contains=TwiggySlashBranchPrefix,TwiggySlashBranchName oneline
-	syntax region TwiggyRemoteSlash start=/\v\(r\)/ end=/\v\S+/ contains=TwiggySlashRemoteBranchPrefix,TwiggySlashRemoteBranchName oneline
+	syntax region TwiggyBranch start=/\v\(l\)/ end=/\v\S+/ contains=TwiggyBranchBranchPrefix,TwiggyBranchBranchName oneline
+	syntax region TwiggyRemoteBranch start=/\v\(r\)/ end=/\v\S+/ contains=TwiggyBranchRemoteBranchPrefix,TwiggyBranchRemoteBranchName oneline
 
 	" local: match either (l)prefix/name or (l)
-	syntax match TwiggySlashBranchPrefix /\v\(l\)[-_[:alnum:].]+\// contained conceal nextgroup=TwiggySlashBranchName contains=TwiggySlashPrefix
-	syntax match TwiggySlashBranchPrefix /\v\(l\)/ contained conceal nextgroup=TwiggySlashBranchName contains=TwiggySlashPrefix
-	syntax match TwiggySlashBranchName   /\v[-_[:alnum:].\/]+/ contained
+	syntax match TwiggyBranchBranchPrefix /\v\(l\)[-_[:alnum:].]+\// contained conceal nextgroup=TwiggyBranchBranchName contains=TwiggyBranchPrefix
+	syntax match TwiggyBranchBranchPrefix /\v\(l\)/ contained conceal nextgroup=TwiggyBranchBranchName contains=TwiggyBranchPrefix
+	syntax match TwiggyBranchBranchName   /\v[-_[:alnum:].\/]+/ contained
 
 	" remote: match either (r)remote/prefix/name or (r)
-	syntax match TwiggySlashRemoteBranchPrefix /\v\(r\)/ contained conceal nextgroup=TwiggySlashRemoteBranchName contains=TwiggySlashPrefix
-	syntax match TwiggySlashRemoteBranchPrefix /\v\(r\)([-_[:alnum:].]+\/){1,2}/ contained conceal nextgroup=TwiggySlashRemoteBranchName contains=TwiggySlashPrefix
-	syntax match TwiggySlashRemoteBranchName   /\v[-_[:alnum:].\/]+/ contained
+	syntax match TwiggyBranchRemoteBranchPrefix /\v\(r\)/ contained conceal nextgroup=TwiggyBranchRemoteBranchName contains=TwiggyBranchPrefix
+	syntax match TwiggyBranchRemoteBranchPrefix /\v\(r\)([-_[:alnum:].]+\/){1,2}/ contained conceal nextgroup=TwiggyBranchRemoteBranchName contains=TwiggyBranchPrefix
+	syntax match TwiggyBranchRemoteBranchName   /\v[-_[:alnum:].\/]+/ contained
  
 	if a:conceal_local && !empty(a:current)
 		let parts = split(a:current, '/')
 		if len(parts) < 2 
-			execute("syntax match TwiggySlashCurrent '\\v\\(l\\)" . a:current . "$' contains=TwiggySlashCurrentPrefix,TwiggySlashCurrentName")
-			syntax match TwiggySlashCurrentPrefix /\V(l)/ contained conceal contains=TwiggySlashPrefix nextgroup=TwiggySlashCurrentName
-			execute('syntax match TwiggySlashCurrentName /\V' .. a:current .. '/ contained')
+			execute("syntax match TwiggyBranchCurrent '\\v\\(l\\)" . a:current . "$' contains=TwiggyBranchCurrentPrefix,TwiggyBranchCurrentName")
+			syntax match TwiggyBranchCurrentPrefix /\V(l)/ contained conceal contains=TwiggyBranchPrefix nextgroup=TwiggyBranchCurrentName
+			execute('syntax match TwiggyBranchCurrentName /\V' .. a:current .. '/ contained')
 		else
 			let prefix = parts[0] .. '/'
 			let name = join(parts[1 :], '/')
 
-			execute('syntax match TwiggySlashCurrent /\v\(l\)' .. escape(a:current, '\/\') .. '/ contains=TwiggySlashCurrentPrefix,TwiggySlashCurrentName')
-			execute('syntax match TwiggySlashCurrentPrefix /\V(l)' .. escape(prefix, '\/\') .. '/ contained conceal contains=TwiggySlashPrefix nextgroup=TwiggySlashCurrentName')
-			execute('syntax match TwiggySlashCurrentName /\V' .. escape(name, '\/\') .. '/ contained')
+			execute('syntax match TwiggyBranchCurrent /\v\(l\)' .. escape(a:current, '\/\') .. '/ contains=TwiggyBranchCurrentPrefix,TwiggyBranchCurrentName')
+			execute('syntax match TwiggyBranchCurrentPrefix /\V(l)' .. escape(prefix, '\/\') .. '/ contained conceal contains=TwiggyBranchPrefix nextgroup=TwiggyBranchCurrentName')
+			execute('syntax match TwiggyBranchCurrentName /\V' .. escape(name, '\/\') .. '/ contained')
 		endif
 	elseif !a:conceal_local && !empty(a:current)
-		execute('syntax match TwiggySlashCurrent /\v\(l\)' .. escape(a:current, '\/\') .. '/ contains=TwiggySlashCurrentPrefix,TwiggySlashCurrentName')
-		syntax match TwiggySlashCurrentPrefix /\V(l)/ contained conceal contains=TwiggySlashPrefix nextgroup=TwiggySlashCurrentName
-		execute('syntax match TwiggySlashCurrentName /\V' .. escape(a:current, '\/\') .. '/ contained')
+		execute('syntax match TwiggyBranchCurrent /\v\(l\)' .. escape(a:current, '\/\') .. '/ contains=TwiggyBranchCurrentPrefix,TwiggyBranchCurrentName')
+		syntax match TwiggyBranchCurrentPrefix /\V(l)/ contained conceal contains=TwiggyBranchPrefix nextgroup=TwiggyBranchCurrentName
+		execute('syntax match TwiggyBranchCurrentName /\V' .. escape(a:current, '\/\') .. '/ contained')
 	endif
 
 	if a:conceal_remote && !empty(a:current_remote)
@@ -1207,28 +1184,27 @@ function! s:Render() abort
 			let name = join(parts[2 :], '/')
 		endif
 
-		execute('syntax match TwiggySlashCurrentRemote /\v\(r\)' .. escape(a:current_remote, '\/\') .. '/ contains=TwiggySlashCurrentRemotePrefix,TwiggySlashCurrentRemoteName')
-		execute('syntax match TwiggySlashCurrentRemotePrefix /\V(r)' .. escape(prefix, '\/\') .. '/ contained conceal contains=TwiggySlashPrefix nextgroup=TwiggySlashCurrentRemoteName')
-		execute('syntax match TwiggySlashCurrentRemoteName /\V' .. escape(name, '\/\') .. '/ contained')
+		execute('syntax match TwiggyBranchCurrentRemote /\v\(r\)' .. escape(a:current_remote, '\/\') .. '/ contains=TwiggyBranchCurrentRemotePrefix,TwiggyBranchCurrentRemoteName')
+		execute('syntax match TwiggyBranchCurrentRemotePrefix /\V(r)' .. escape(prefix, '\/\') .. '/ contained conceal contains=TwiggyBranchPrefix nextgroup=TwiggyBranchCurrentRemoteName')
+		execute('syntax match TwiggyBranchCurrentRemoteName /\V' .. escape(name, '\/\') .. '/ contained')
 	elseif !a:conceal_remote && !empty(a:current_remote)
 		let parts = split(a:current_remote, '/')
 		let prefix = parts[0] .. '/'
 		let name = join(parts[1 :], '/')
 
-		execute('syntax match TwiggySlashCurrentRemote /\v\(r\)' .. escape(a:current_remote, '\/\') .. '/ contains=TwiggySlashCurrentRemotePrefix,TwiggySlashCurrentRemoteName')
-		execute('syntax match TwiggySlashCurrentRemotePrefix /\V(r)' .. escape(prefix, '\/\') .. '/ contained conceal contains=TwiggySlashPrefix nextgroup=TwiggySlashCurrentRemoteName')
-		execute('syntax match TwiggySlashCurrentRemoteName /\V' .. escape(name, '\/\') .. '/ contained')
+		execute('syntax match TwiggyBranchCurrentRemote /\v\(r\)' .. escape(a:current_remote, '\/\') .. '/ contains=TwiggyBranchCurrentRemotePrefix,TwiggyBranchCurrentRemoteName')
+		execute('syntax match TwiggyBranchCurrentRemotePrefix /\V(r)' .. escape(prefix, '\/\') .. '/ contained conceal contains=TwiggyBranchPrefix nextgroup=TwiggyBranchCurrentRemoteName')
+		execute('syntax match TwiggyBranchCurrentRemoteName /\V' .. escape(name, '\/\') .. '/ contained')
 	endif
 
-	" execute('syntax match TwiggySlashPrefix /\v' . escape(slash_prefix, '()') . '/ contained conceal')
-	syntax match TwiggySlashPrefix /\v\(l\)/ contained conceal
-	syntax match TwiggySlashPrefix /\v\(r\)/ contained conceal
-  
+	syntax match TwiggyBranchPrefix /\v\(l\)/ contained conceal
+	syntax match TwiggyBranchPrefix /\v\(r\)/ contained conceal
   endfunction
 
   let current_branch = s:get_current_branch()
   let current_branch_remote = s:get_current_branch_remote()
-  call ConcealSlashBranches(current_branch, current_branch_remote, g:twiggy_group_locals_by_slash, g:twiggy_group_remotes_by_slash)
+  call RenderBranches(current_branch, current_branch_remote, g:twiggy_group_locals_by_slash, g:twiggy_group_remotes_by_slash)
+  " ────────────────────────────────────────────────────────────────────────
 
   exec "syntax match TwiggyCurrent '\\V\\%1c" . s:icons.current . "'"
   highlight default link TwiggyCurrent Identifier
