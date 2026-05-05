@@ -281,12 +281,9 @@ function! s:parse_branch(branch, type) abort
     let remote_details = remote_details . ': ' . pieces[4][1:-2]
   endif
 
-  if remote_details ==# ''
-    let branch.details = join([pieces[2], pieces[5]], ' ')
-  else
-    let remote_details = '['.remote_details.']'
-    let branch.details = join([pieces[2], remote_details, pieces[5]], ' ')
-  endif
+  let branch.hash = pieces[2]
+  let branch.msg = pieces[5]
+  let branch.remote_details = remote_details
 
   if empty(branch.name) | return {} | endif
   return branch
@@ -723,9 +720,14 @@ function! s:show_branch_details() abort
   let line = line('.')
   if has_key(s:branch_line_refs, line)
     let max_len = &columns - 16
-    let details = s:branch_line_refs[line].details
-    if len(details) > max_len
-      let details = details[0:max_len] . '...'
+	let name = s:branch_line_refs[line].name 
+	let hash = s:branch_line_refs[line].hash
+	let msg = s:branch_line_refs[line].msg
+	let remote = s:branch_line_refs[line].remote_details
+	let total_len = len(msg) + len(name) + len(hash) + len(remote)
+    if total_len > max_len
+	  let ellipsis = has('multi_byte') ? '…' : '...'
+      let msg = msg[0:max_len + len(msg) - total_len - 1 - strcharlen(ellipsis)] . ellipsis
     endif
     redraw
     " Hacky deprecation code
@@ -736,7 +738,24 @@ function! s:show_branch_details() abort
       echohl None
       unlet t:twiggy_deprecation_notice
     else
-      echo details
+	  echohl TwiggyBranchCurrentName
+	  echon name 
+	  echohl clear
+	  echon ' ('
+	  echohl TwiggyGitHash
+	  echon hash
+	  echohl clear
+	  echon ')'
+	  if !empty(remote)
+		  echon ' [' 
+		  echohl TwiggyRemote
+		  echon remote 
+		  echohl clear
+		  echon ']'
+	  endif
+	  echon ': '
+      echon msg
+	  echon
     endif
   end
 endfunction
@@ -1011,6 +1030,8 @@ function! s:Render() abort
     return
   endif
 
+  highlight default link TwiggyGitHash fugitiveHash
+  highlight default link TwiggyRemote fugitiveSymbolicRef
   call s:show_branch_details()
   let s:total_lines = len(output)
 
