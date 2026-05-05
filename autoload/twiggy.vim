@@ -283,6 +283,8 @@ function! s:parse_branch(branch, type) abort
 
   let branch.hash = pieces[2]
   let branch.msg = pieces[5]
+  let branch.remote_branch = pieces[3]
+  let branch.remote_info = pieces[4][1:-2]
   let branch.remote_details = remote_details
 
   if empty(branch.name) | return {} | endif
@@ -723,8 +725,10 @@ function! s:show_branch_details() abort
 	let name = s:branch_line_refs[line].name 
 	let hash = s:branch_line_refs[line].hash
 	let msg = s:branch_line_refs[line].msg
-	let remote = s:branch_line_refs[line].remote_details
-	let total_len = len(msg) + len(name) + len(hash) + len(remote)
+	let remote_branch = s:branch_line_refs[line].remote_branch
+	let remote_info = s:branch_line_refs[line].remote_info
+	let status = s:branch_line_refs[line].status
+	let total_len = len(msg) + len(name) + len(hash) + len(remote_branch) + len(remote_info)
     if total_len > max_len
 	  let ellipsis = has('multi_byte') ? '…' : '...'
       let msg = msg[0:max_len + len(msg) - total_len - 1 - strcharlen(ellipsis)] . ellipsis
@@ -746,11 +750,23 @@ function! s:show_branch_details() abort
 	  echon hash
 	  echohl clear
 	  echon ')'
-	  if !empty(remote)
+	  if !empty(remote_branch)
 		  echon ' [' 
 		  echohl TwiggyRemote
-		  echon remote 
+		  echon remote_branch
 		  echohl clear
+		  if !empty(remote_info)
+			  echon ': '
+			  if status ==# 'ahead'
+				  echohl TwiggyAhead
+			  elseif status ==# 'behind'
+				  echohl TwiggyBehind
+			  elseif status ==# 'both'
+				  echohl TwiggyAheadBehind
+			  endif
+			  echon remote_info
+			  echohl clear
+		  endif
 		  echon ']'
 	  endif
 	  echon ': '
