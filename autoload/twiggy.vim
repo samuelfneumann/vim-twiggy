@@ -1323,6 +1323,22 @@ function! s:Checkout(track) abort
   let current_branch = s:get_current_branch()
   let switch_branch = s:branch_under_cursor()
 
+  if s:dirty_tree()
+    let dirty_files = s:git_cmd('diff --name-only', 0)
+    let warning = 'error: Your local changes to the following files would be overwritten by checkout:'
+    let s:last_output = [
+          \ warning
+          \ ]
+    call extend(s:last_output, map(dirty_files, '"\t" . v:val'))
+    call extend(s:last_output, [
+          \ 'Please commit your changes or stash them before you switch branches.',
+          \ 'Aborting',
+          \ ])
+    let v:warningmsg = warning
+    call s:RenderOutputBuffer()
+    return 1
+  endif
+
   if a:track && current_branch ==# switch_branch.fullname
     echo "Already on " . current_branch
     return 1
