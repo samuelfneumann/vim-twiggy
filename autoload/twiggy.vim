@@ -769,8 +769,7 @@ function! s:show_branch_details() abort
 		  endif
 		  echon ']'
 	  endif
-	  echon ': '
-      echon msg
+      echon ' ' . msg
 	  echon
     endif
   end
