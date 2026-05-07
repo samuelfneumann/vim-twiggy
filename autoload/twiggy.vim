@@ -728,7 +728,7 @@ function! s:show_branch_details() abort
 	let remote_branch = s:branch_line_refs[line].remote_branch
 	let remote_info = s:branch_line_refs[line].remote_info
 	let status = s:branch_line_refs[line].status
-	let total_len = len(msg) + len(name) + len(hash) + len(remote_branch) + len(remote_info)
+	let total_len = 8 + len(msg) + len(name) + len(hash) + len(remote_branch) + len(remote_info)
     if total_len > max_len
 	  let ellipsis = has('multi_byte') ? '…' : '...'
       let msg = msg[0:max_len + len(msg) - total_len - 1 - strcharlen(ellipsis)] . ellipsis
