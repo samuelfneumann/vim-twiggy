@@ -9,6 +9,8 @@ if exists('g:autoloaded_twiggy')
 endif
 let g:autoloaded_twiggy = 1
 
+highlight default link TwiggyCommitMsg Normal
+
 " {{{1 Utility
 "   {{{2 buffocus
 function! s:buffocus(bufnr) abort
@@ -746,7 +748,7 @@ function! s:show_branch_details() abort
 	  echon name 
 	  echohl clear
 	  echon ' ('
-	  echohl TwiggyGitHash
+	  echohl TwiggyCommitHash
 	  echon hash
 	  echohl clear
 	  echon ')'
@@ -769,7 +771,9 @@ function! s:show_branch_details() abort
 		  endif
 		  echon ']'
 	  endif
+	  echohl TwiggyCommitMessage
       echon ' ' . msg
+	  echohl clear
 	  echon
     endif
   end
@@ -1045,7 +1049,7 @@ function! s:Render() abort
     return
   endif
 
-  highlight default link TwiggyGitHash fugitiveHash
+  highlight default link TwiggyCommitHash fugitiveHash
   highlight default link TwiggyRemote fugitiveSymbolicRef
   call s:show_branch_details()
   let s:total_lines = len(output)
