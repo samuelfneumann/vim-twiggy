@@ -1210,13 +1210,14 @@ function! s:Render() abort
 			let prefix = parts[0] .. '/'
 			let name = join(parts[1 :], '/')
 
-			execute('syntax match TwiggyBranchCurrent /\v\(l\)' .. escape(a:current, '\/\') .. '/ contains=TwiggyBranchCurrentPrefix,TwiggyBranchCurrentName')
+			execute('syntax match TwiggyBranchCurrent /\v\(l\)' .. escape(a:current, '\/\') .. '$/ contains=TwiggyBranchCurrentPrefix,TwiggyBranchCurrentName')
 			execute('syntax match TwiggyBranchCurrentPrefix /\V(l)' .. escape(prefix, '\/\') .. '/ contained conceal contains=TwiggyBranchPrefix nextgroup=TwiggyBranchCurrentName')
 			execute('syntax match TwiggyBranchCurrentName /\V' .. escape(name, '\/\') .. '/ contained')
 		endif
 	elseif !a:conceal_local && !empty(a:current)
-		execute('syntax match TwiggyBranchCurrent /\v\(l\)' .. escape(a:current, '\/\') .. '/ contains=TwiggyBranchCurrentPrefix,TwiggyBranchCurrentName')
+		execute('syntax match TwiggyBranchCurrent /\v\(l\)' .. escape(a:current, '\/\') .. '$/ contains=TwiggyBranchCurrentPrefix,TwiggyBranchCurrentName')
 		syntax match TwiggyBranchCurrentPrefix /\V(l)/ contained conceal contains=TwiggyBranchPrefix nextgroup=TwiggyBranchCurrentName
+		echom a:current
 		execute('syntax match TwiggyBranchCurrentName /\V' .. escape(a:current, '\/\') .. '/ contained')
 	endif
 
@@ -1230,7 +1231,7 @@ function! s:Render() abort
 			let name = join(parts[2 :], '/')
 		endif
 
-		execute('syntax match TwiggyBranchCurrentRemote /\v\(r\)' .. escape(a:current_remote, '\/\') .. '/ contains=TwiggyBranchCurrentRemotePrefix,TwiggyBranchCurrentRemoteName')
+		execute('syntax match TwiggyBranchCurrentRemote /\v\(r\)' .. escape(a:current_remote, '\/\') .. '$/ contains=TwiggyBranchCurrentRemotePrefix,TwiggyBranchCurrentRemoteName')
 		execute('syntax match TwiggyBranchCurrentRemotePrefix /\V(r)' .. escape(prefix, '\/\') .. '/ contained conceal contains=TwiggyBranchPrefix nextgroup=TwiggyBranchCurrentRemoteName')
 		execute('syntax match TwiggyBranchCurrentRemoteName /\V' .. escape(name, '\/\') .. '/ contained')
 	elseif !a:conceal_remote && !empty(a:current_remote)
@@ -1238,7 +1239,7 @@ function! s:Render() abort
 		let prefix = parts[0] .. '/'
 		let name = join(parts[1 :], '/')
 
-		execute('syntax match TwiggyBranchCurrentRemote /\v\(r\)' .. escape(a:current_remote, '\/\') .. '/ contains=TwiggyBranchCurrentRemotePrefix,TwiggyBranchCurrentRemoteName')
+		execute('syntax match TwiggyBranchCurrentRemote /\v\(r\)' .. escape(a:current_remote, '\/\') .. '$/ contains=TwiggyBranchCurrentRemotePrefix,TwiggyBranchCurrentRemoteName')
 		execute('syntax match TwiggyBranchCurrentRemotePrefix /\V(r)' .. escape(prefix, '\/\') .. '/ contained conceal contains=TwiggyBranchPrefix nextgroup=TwiggyBranchCurrentRemoteName')
 		execute('syntax match TwiggyBranchCurrentRemoteName /\V' .. escape(name, '\/\') .. '/ contained')
 	endif
