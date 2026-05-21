@@ -1204,9 +1204,10 @@ function! s:Render() abort
   highlight default link TwiggyBranch Comment
   highlight default link TwiggyRemoteBranch Comment
   highlight default link TwiggyBranchPrefix Comment
+  highlight default link TwiggyBranchBranchPrefix Comment
   highlight default link TwiggyBranchCurrentPrefix Comment
   highlight default link TwiggyBranchCurrentName TwiggyCurrent
-  highlight default link TwiggyBranchCurrentRemoteName TwiggyCurrent
+  highlight default link TwiggyBranchCurrentRemoteName TwiggyRemote
   highlight default link TwiggyBranchCurrent Identifier
 
   " ────────────────────────────────────────────────────────────────────────
@@ -1226,13 +1227,17 @@ function! s:Render() abort
 	syntax region TwiggyRemoteBranch start=/\v\(r\)/ end=/\v\S+/ contains=TwiggyBranchRemoteBranchPrefix,TwiggyBranchRemoteBranchName oneline
 
 	" local: match either (l)prefix/name or (l)
-	syntax match TwiggyBranchBranchPrefix /\v\(l\)[-_[:alnum:].]+\// contained conceal nextgroup=TwiggyBranchBranchName contains=TwiggyBranchPrefix
 	syntax match TwiggyBranchBranchPrefix /\v\(l\)/ contained conceal nextgroup=TwiggyBranchBranchName contains=TwiggyBranchPrefix
+	if a:conceal_local
+		syntax match TwiggyBranchBranchPrefix /\v\(l\)[-_[:alnum:].]+\// contained conceal nextgroup=TwiggyBranchBranchName contains=TwiggyBranchPrefix
+	endif
 	syntax match TwiggyBranchBranchName   /\v[-_[:alnum:].\/]+/ contained
 
 	" remote: match either (r)remote/prefix/name or (r)
 	syntax match TwiggyBranchRemoteBranchPrefix /\v\(r\)/ contained conceal nextgroup=TwiggyBranchRemoteBranchName contains=TwiggyBranchPrefix
-	syntax match TwiggyBranchRemoteBranchPrefix /\v\(r\)([-_[:alnum:].]+\/){1,2}/ contained conceal nextgroup=TwiggyBranchRemoteBranchName contains=TwiggyBranchPrefix
+	if a:conceal_remote
+		syntax match TwiggyBranchRemoteBranchPrefix /\v\(r\)([-_[:alnum:].]+\/){1,2}/ contained conceal nextgroup=TwiggyBranchRemoteBranchName contains=TwiggyBranchPrefix
+	endif
 	syntax match TwiggyBranchRemoteBranchName   /\v[-_[:alnum:].\/]+/ contained
  
 	if a:conceal_local && !empty(a:current)
