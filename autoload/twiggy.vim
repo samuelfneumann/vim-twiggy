@@ -725,11 +725,11 @@ function! s:show_branch_details() abort
   if has_key(s:branch_line_refs, line)
     let max_len = &columns - 16
 	let name = s:branch_line_refs[line].name 
-	let hash = s:branch_line_refs[line].hash
-	let msg = s:branch_line_refs[line].msg
-	let remote_branch = s:branch_line_refs[line].remote_branch
-	let remote_info = s:branch_line_refs[line].remote_info
-	let status = s:branch_line_refs[line].status
+	let hash = get(s:branch_line_refs[line], "hash", "")
+	let msg = get(s:branch_line_refs[line], "msg", "")
+	let remote_branch = get(s:branch_line_refs[line], "remote_branch", "")
+	let remote_info = get(s:branch_line_refs[line], "remote_info", "")
+	let status = get(s:branch_line_refs[line], "status", "")
 	let total_len = 8 + len(msg) + len(name) + len(hash) + len(remote_branch) + len(remote_info)
     if total_len > max_len
 	  let ellipsis = has('multi_byte') ? '…' : '...'
@@ -747,11 +747,13 @@ function! s:show_branch_details() abort
 	  echohl TwiggyBranchCurrentName
 	  echon name 
 	  echohl clear
-	  echon ' ('
-	  echohl TwiggyCommitHash
-	  echon hash
-	  echohl clear
-	  echon ')'
+	  if !empty(hash)
+		  echon ' ('
+		  echohl TwiggyCommitHash
+		  echon hash
+		  echohl clear
+		  echon ')'
+	  endif
 	  if !empty(remote_branch)
 		  echon ' [' 
 		  echohl TwiggyRemote
@@ -771,10 +773,12 @@ function! s:show_branch_details() abort
 		  endif
 		  echon ']'
 	  endif
-	  echohl TwiggyCommitMessage
-      echon ' ' . msg
-	  echohl clear
-	  echon
+	  if !empty(msg)
+		  echohl TwiggyCommitMessage
+		  echon ' ' . msg
+		  echohl clear
+		  echon
+	  endif
     endif
   end
 endfunction
