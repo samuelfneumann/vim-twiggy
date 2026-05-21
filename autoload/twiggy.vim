@@ -746,25 +746,26 @@ function! s:show_branch_details() abort
       unlet t:twiggy_deprecation_notice
     else
 
-	  let icon = trim(decor)
-	  if icon ==# s:icons.current
-		  echohl TwiggyCurrent
-	  elseif icon ==# s:icons.tracking
-		  echohl TwiggyTracking
-	  elseif icon ==# s:icons.ahead
-		  echohl TwiggyAhead
-	  elseif icon ==# s:icons.behind
-		  echohl TwiggyBehind
-	  elseif icon ==# s:icons.both
-		  echohl TwiggyAheadBehind
-	  elseif icon ==# s:icons.detached
-		  echohl TwiggyDetached
-	  elseif icon ==# s:icons.unmerged
-		  echohl TwiggyUnmerged
-	  else
-		  echohl ErrorMsg
-	  endif
-	  echon decor
+	  for icon in decor
+		  if icon ==# s:icons.current
+			  echohl TwiggyCurrent
+		  elseif icon ==# s:icons.tracking
+			  echohl TwiggyTracking
+		  elseif icon ==# s:icons.ahead
+			  echohl TwiggyAhead
+		  elseif icon ==# s:icons.behind
+			  echohl TwiggyBehind
+		  elseif icon ==# s:icons.both
+			  echohl TwiggyAheadBehind
+		  elseif icon ==# s:icons.detached
+			  echohl TwiggyDetached
+		  elseif icon ==# s:icons.unmerged
+			  echohl TwiggyUnmerged
+		  else
+			  echohl ErrorMsg
+		  endif
+		  echon icon
+	  endfor
 	  echohl clear
 
 	  if name =~# '\v^HEAD\@[0-9a-fA-F]+'
