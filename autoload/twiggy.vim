@@ -724,13 +724,14 @@ function! s:show_branch_details() abort
   let line = line('.')
   if has_key(s:branch_line_refs, line)
     let max_len = &columns - 16
+	let decor = s:branch_line_refs[line].decoration
 	let name = s:branch_line_refs[line].name 
 	let hash = get(s:branch_line_refs[line], "hash", "")
 	let msg = get(s:branch_line_refs[line], "msg", "")
 	let remote_branch = get(s:branch_line_refs[line], "remote_branch", "")
 	let remote_info = get(s:branch_line_refs[line], "remote_info", "")
 	let status = get(s:branch_line_refs[line], "status", "")
-	let total_len = 8 + len(msg) + len(name) + len(hash) + len(remote_branch) + len(remote_info)
+	let total_len = 8 + strcharlen(decor) + len(msg) + len(name) + len(hash) + len(remote_branch) + len(remote_info)
     if total_len > max_len
 	  let ellipsis = has('multi_byte') ? '…' : '...'
       let msg = msg[0:max_len + len(msg) - total_len - 1 - strcharlen(ellipsis)] . ellipsis
@@ -744,9 +745,36 @@ function! s:show_branch_details() abort
       echohl None
       unlet t:twiggy_deprecation_notice
     else
-	  echohl TwiggyBranchCurrentName
+
+	  let icon = trim(decor)
+	  if icon ==# s:icons.current
+		  echohl TwiggyCurrent
+	  elseif icon ==# s:icons.tracking
+		  echohl TwiggyTracking
+	  elseif icon ==# s:icons.ahead
+		  echohl TwiggyAhead
+	  elseif icon ==# s:icons.behind
+		  echohl TwiggyBehind
+	  elseif icon ==# s:icons.both
+		  echohl TwiggyAheadBehind
+	  elseif icon ==# s:icons.detached
+		  echohl TwiggyDetached
+	  elseif icon ==# s:icons.unmerged
+		  echohl TwiggyUnmerged
+	  else
+		  echohl ErrorMsg
+	  endif
+	  echon decor
+	  echohl clear
+
+	  if name =~# '\v^HEAD\@[0-9a-fA-F]+'
+	    echohl TwiggyDetachedText
+	  else
+	    echohl TwiggyBranchCurrentName
+	  endif
 	  echon name 
 	  echohl clear
+
 	  if !empty(hash)
 		  echon ' ('
 		  echohl TwiggyCommitHash
@@ -754,6 +782,7 @@ function! s:show_branch_details() abort
 		  echohl clear
 		  echon ')'
 	  endif
+
 	  if !empty(remote_branch)
 		  echon ' [' 
 		  echohl TwiggyRemote
@@ -773,6 +802,7 @@ function! s:show_branch_details() abort
 		  endif
 		  echon ']'
 	  endif
+
 	  if !empty(msg)
 		  echohl TwiggyCommitMessage
 		  echon ' ' . msg
