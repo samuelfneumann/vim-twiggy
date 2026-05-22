@@ -73,6 +73,7 @@ else
   let s:icon_set = ['*', '=', '+', '-', '~', '%', 'x']
 endif
 
+let s:ellipsis = has('multi_byte') ? '…' : '...'
 let s:icons = {}
 let s:icons.current  = s:icon_set[0]
 let s:icons.tracking = s:icon_set[1]
@@ -623,11 +624,15 @@ function! s:quickhelp_view() abort
   call add(output, '---------------------------')
   call add(output, 'w/ the cursor on a branch:')
   call add(output, '---------------------------')
+  call add(output, '<CR>  checkout')
   call add(output, 'c     checkout')
   call add(output, 'o     checkout')
-  call add(output, '<CR>  checkout')
+  call add(output, 'cm    checkout --merge')
+  call add(output, 'om    checkout --merge')
   call add(output, 'C     checkout remote')
   call add(output, 'O     checkout remote')
+  call add(output, 'Cm    checkout --merge remote')
+  call add(output, 'Om    checkout --merge remote')
   call add(output, 'gc    checkout as: <name>')
   call add(output, 'go    checkout as: <name>')
   call add(output, 'f     fetch remote')
@@ -664,6 +669,7 @@ function! s:quickhelp_view() abort
   call add(output, 'gi    cycle remote sorts')
   call add(output, 'gI    `gi` in reverse')
   call add(output, 'a     toggle slash-grouping')
+  call add(output, 'ga    toggle slash-grouping remotes')
   if g:twiggy_show_full_ui
     call add(output, '')
     call add(output, '****************************')
@@ -733,8 +739,7 @@ function! s:show_branch_details() abort
 	let status = get(s:branch_line_refs[line], "status", "")
 	let total_len = 8 + strcharlen(decor) + len(msg) + len(name) + len(hash) + len(remote_branch) + len(remote_info)
     if total_len > max_len
-	  let ellipsis = has('multi_byte') ? '…' : '...'
-      let msg = msg[0:max_len + len(msg) - total_len - 1 - strcharlen(ellipsis)] . ellipsis
+      let msg = msg[0:max_len + len(msg) - total_len - 1 - strcharlen(s:ellipsis)] . s:ellipsis
     endif
     redraw
     " Hacky deprecation code
@@ -1133,11 +1138,15 @@ function! s:Render() abort
     nnoremap <buffer> <silent> gg    :normal! 2gg<CR>
   endif
 
-  call s:mapping('<CR>',    'Checkout',         [1])
-  call s:mapping('c',       'Checkout',         [1])
-  call s:mapping('C',       'Checkout',         [0])
-  call s:mapping('o',       'Checkout',         [1])
-  call s:mapping('O',       'Checkout',         [0])
+  call s:mapping('<CR>',    'Checkout',         [1, 0])
+  call s:mapping('c',       'Checkout',         [1, 0])
+  call s:mapping('C',       'Checkout',         [0, 0])
+  call s:mapping('o',       'Checkout',         [1, 0])
+  call s:mapping('O',       'Checkout',         [0, 0])
+  call s:mapping('cm',      'Checkout',         [1, 1])
+  call s:mapping('Cm',      'Checkout',         [0, 1])
+  call s:mapping('om',      'Checkout',         [1, 1])
+  call s:mapping('Om',      'Checkout',         [0, 1])
   call s:mapping('gc',      'CheckoutAs',       [])
   call s:mapping('go',      'CheckoutAs',       [])
   call s:mapping('dd',      'Delete',           [])
@@ -1504,11 +1513,12 @@ endfunction
 
 "   {{{2 Git
 "     {{{3 Checkout
-function! s:Checkout(track) abort
+function! s:Checkout(track, merge) abort
   let current_branch = s:get_current_branch()
   let switch_branch = s:branch_under_cursor()
+  let merge_opt = a:merge ? ' --merge ' : ''
 
-  if s:dirty_tree()
+  if s:dirty_tree() && !a:merge
     let dirty_files = s:git_cmd('diff --name-only', 0)
     let warning = 'error: Your local changes to the following files would be overwritten by checkout:'
     let s:last_output = [
@@ -1529,21 +1539,21 @@ function! s:Checkout(track) abort
     return 1
   else
     redraw
-    echo 'Moving from ' . current_branch . ' to ' . switch_branch.fullname . '...'
+    echo 'Moving from ' . current_branch . ' to ' . switch_branch.fullname . s:ellipsis
     if a:track && !switch_branch.is_local " tracking and branch is remote
       if index(map(s:git_cmd('branch --list', 0), 'v:val[2:]'), switch_branch.name) >= 0
         " Checkout remote in detached HEAD
-        call s:git_cmd('checkout ' . switch_branch.fullname, 0)
+        call s:git_cmd('switch ' . merge_opt . switch_branch.fullname, 0)
       else
         " Create a new tracking branch
-        call s:git_cmd('checkout -b ' . switch_branch.name . ' ' . switch_branch.fullname , 0)
+        call s:git_cmd('switch -c ' . merge_opt . switch_branch.name . ' ' . switch_branch.fullname , 0)
       endif
     elseif !a:track && !switch_branch.is_local " not tracking and branch is remote
-      call s:git_cmd('checkout ' . switch_branch.fullname, 0)
+      call s:git_cmd('switch ' . merge_opt . switch_branch.fullname, 0)
     elseif !a:track && switch_branch.is_local " not tracking and branch is local
-      call s:git_cmd('checkout ' . switch_branch.tracking, 0)
+      call s:git_cmd('switch ' . merge_opt . switch_branch.tracking, 0)
     else " tracking and branch is local
-      call s:git_cmd('checkout ' . switch_branch.fullname, 0)
+      call s:git_cmd('switch ' . merge_opt . switch_branch.fullname, 0)
     endif
   endif
 
@@ -1569,9 +1579,9 @@ function! s:CheckoutAs() abort
       echo branch.name . " already exists."
       return 1
     endif
-    call s:git_cmd("checkout -b " . new_name . " " . branch.fullname, 0)
+    call s:git_cmd("switch -c " . new_name . " " . branch.fullname, 0)
     redraw
-    echo 'Moving from ' . branch.name . ' to ' . new_name . '...'
+    echo 'Moving from ' . branch.name . ' to ' . new_name . s:ellipsis
 
     let s:init_line = 0
     let s:last_branch_under_cursor = 0
@@ -1798,7 +1808,7 @@ function! s:Push(choose_upstream, force) abort
     if !a:force || !g:twiggy_prompted_force_push
       call s:git_cmd(cmd, 1)
     else
-      return s:Confirm("Force push to " . branch.tracking . "?",
+      return s:Confirm("Force push (with lease) to " . branch.tracking . "?",
             \ "s:git_cmd('" . cmd . "', 1)", 0)
     endif
   endif
@@ -1824,7 +1834,7 @@ function! s:Rename() abort
   let new_name = input("Rename " . branch.fullname . " to: ", branch.fullname)
   redraw
   if !empty(new_name)
-	  echo "Renaming \"" . branch.fullname . "\" to \"" . new_name . "\"... "
+	  echo 'Renaming "' . branch.fullname . '" to "' . new_name . '"' . s:ellipsis
 	  call s:git_cmd("branch -m " . branch.fullname . " " . new_name, 0)
 	  call fugitive#ReloadStatus()
   endif
