@@ -455,9 +455,16 @@ function! s:get_current_branch() abort
   return s:git_cmd('rev-parse --abbrev-ref HEAD', 0)[0]
 endfunction
 
-"   {{{2 get_current_branch_remote
-function! s:get_current_branch_remote() abort
+"   {{{2 get_current_branch_remote_upstream
+function! s:get_current_branch_remote_upstream() abort
   let remote = s:git_cmd('rev-parse --abbrev-ref --symbolic-full-name @{u} 2>/dev/null', 0)
+  if empty(remote) | return "" | endif
+  return remote[0]
+endfunction
+
+"   {{{2 get_current_branch_remote_push
+function! s:get_current_branch_remote_push() abort
+  let remote = s:git_cmd('rev-parse --abbrev-ref --symbolic-full-name @{push} 2>/dev/null', 0)
   if empty(remote) | return "" | endif
   return remote[0]
 endfunction
@@ -791,7 +798,7 @@ function! s:show_branch_details() abort
 
 	  if !empty(remote_branch)
 		  echon ' [' 
-		  echohl TwiggyRemote
+		  echohl TwiggyUpstream
 		  echon remote_branch
 		  echohl clear
 		  if !empty(remote_info)
@@ -1090,7 +1097,9 @@ function! s:Render() abort
   endif
 
   highlight default link TwiggyCommitHash fugitiveHash
-  highlight default link TwiggyRemote fugitiveSymbolicRef
+  highlight default link TwiggyUpstreamPush Directory
+  highlight default link TwiggyPush Error
+  highlight default link TwiggyUpstream fugitiveSymbolicRef
   call s:show_branch_details()
   let s:total_lines = len(output)
 
@@ -1216,7 +1225,9 @@ function! s:Render() abort
   highlight default link TwiggyBranchBranchPrefix Comment
   highlight default link TwiggyBranchCurrentPrefix Comment
   highlight default link TwiggyBranchCurrentName TwiggyCurrent
-  highlight default link TwiggyBranchCurrentRemoteName TwiggyRemote
+  highlight default link TwiggyBranchCurrentUpstreamName TwiggyUpstream
+  highlight default link TwiggyBranchCurrentPushName TwiggyPush
+  highlight default link TwiggyBranchCurrentUpstreamPushName TwiggyUpstreamPush
   highlight default link TwiggyBranchCurrent Identifier
 
   " ────────────────────────────────────────────────────────────────────────
@@ -1224,7 +1235,7 @@ function! s:Render() abort
   " ────────────────────────────────────────────────────────────────────────
   let &l:conceallevel = 2
   let &l:concealcursor = 'nvic'
-  function! RenderBranches(current, current_remote, conceal_local, conceal_remote)
+  function! RenderBranches(current, upstream, push, conceal_local, conceal_remote)
     syntax clear TwiggyBranch
     syntax clear TwiggyRemoteBranch
     syntax clear TwiggyBranchPrefix
@@ -1270,36 +1281,70 @@ function! s:Render() abort
 		execute('syntax match TwiggyBranchCurrentName /\V' .. escape(a:current, '\/\') .. '/ contained')
 	endif
 
-	if a:conceal_remote && !empty(a:current_remote)
-		let parts = split(a:current_remote, '/')
-		if len(parts) < 3 
-			let prefix = parts[0] .. '/'
-			let name = join(parts[1 :], '/')
-		else
-			let prefix = join(parts[0 : 1], '/') .. '/'
-			let name = join(parts[2 :], '/')
+	function! RenderRemote(conceal_remote, remote, type)
+		if a:conceal_remote && !empty(a:remote)
+			let parts = split(a:remote, '/')
+			if len(parts) < 3 
+				let prefix = parts[0] .. '/'
+				let name = join(parts[1 :], '/')
+			else
+				let prefix = join(parts[0 : 1], '/') .. '/'
+				let name = join(parts[2 :], '/')
+			endif
+
+			execute('syntax match TwiggyBranchCurrent' . a:type . ' /\v\(r\)' .. escape(a:remote, '\/\') .. '$/ contains=TwiggyBranchCurrent' . a:type . 'Prefix,TwiggyBranchCurrent' . a:type . 'Name')
+			execute('syntax match TwiggyBranchCurrent' . a:type . 'Prefix /\V(r)' .. escape(prefix, '\/\') .. '/ contained conceal contains=TwiggyBranchPrefix nextgroup=TwiggyBranchCurrent' . a:type . 'Name')
+			execute('syntax match TwiggyBranchCurrent' . a:type . 'Name /\V' .. escape(name, '\/\') .. '/ contained')
+		elseif !a:conceal_remote && !empty(a:remote)
+			let parts = split(a:remote, '/')
+			let prefix = ''
+			let name = join(parts[0 :], '/')
+
+			execute('syntax match TwiggyBranchCurrent' . a:type . ' /\v\(r\)' .. escape(a:remote, '\/\') .. '$/ contains=TwiggyBranchCurrent' . a:type . 'Prefix,TwiggyBranchCurrent' . a:type . 'Name')
+			execute('syntax match TwiggyBranchCurrent' . a:type . 'Prefix /\V(r)' .. escape(prefix, '\/\') .. '/ contained conceal contains=TwiggyBranchPrefix nextgroup=TwiggyBranchCurrent' . a:type . 'Name')
+			execute('syntax match TwiggyBranchCurrent' . a:type . 'Name /\V' .. escape(name, '\/\') .. '/ contained')
 		endif
 
-		execute('syntax match TwiggyBranchCurrentRemote /\v\(r\)' .. escape(a:current_remote, '\/\') .. '$/ contains=TwiggyBranchCurrentRemotePrefix,TwiggyBranchCurrentRemoteName')
-		execute('syntax match TwiggyBranchCurrentRemotePrefix /\V(r)' .. escape(prefix, '\/\') .. '/ contained conceal contains=TwiggyBranchPrefix nextgroup=TwiggyBranchCurrentRemoteName')
-		execute('syntax match TwiggyBranchCurrentRemoteName /\V' .. escape(name, '\/\') .. '/ contained')
-	elseif !a:conceal_remote && !empty(a:current_remote)
-		let parts = split(a:current_remote, '/')
-		let prefix = parts[0] .. '/'
-		let name = join(parts[1 :], '/')
+	endfunction
 
-		execute('syntax match TwiggyBranchCurrentRemote /\v\(r\)' .. escape(a:current_remote, '\/\') .. '$/ contains=TwiggyBranchCurrentRemotePrefix,TwiggyBranchCurrentRemoteName')
-		execute('syntax match TwiggyBranchCurrentRemotePrefix /\V(r)' .. escape(prefix, '\/\') .. '/ contained conceal contains=TwiggyBranchPrefix nextgroup=TwiggyBranchCurrentRemoteName')
-		execute('syntax match TwiggyBranchCurrentRemoteName /\V' .. escape(name, '\/\') .. '/ contained')
+	if a:upstream ==# a:push
+		call RenderRemote(a:conceal_remote, a:upstream, "UpstreamPush")
+	else
+		call RenderRemote(a:conceal_remote, a:upstream, "Upstream")
+		call RenderRemote(a:conceal_remote, a:push, "Push")
 	endif
+
+	" if a:conceal_remote && !empty(a:upstream)
+	" 	let parts = split(a:upstream, '/')
+	" 	if len(parts) < 3 
+	" 		let prefix = parts[0] .. '/'
+	" 		let name = join(parts[1 :], '/')
+	" 	else
+	" 		let prefix = join(parts[0 : 1], '/') .. '/'
+	" 		let name = join(parts[2 :], '/')
+	" 	endif
+
+	" 	execute('syntax match TwiggyBranchCurrentUpstream /\v\(r\)' .. escape(a:upstream, '\/\') .. '$/ contains=TwiggyBranchCurrentUpstreamPrefix,TwiggyBranchCurrentUpstreamName')
+	" 	execute('syntax match TwiggyBranchCurrentUpstreamPrefix /\V(r)' .. escape(prefix, '\/\') .. '/ contained conceal contains=TwiggyBranchPrefix nextgroup=TwiggyBranchCurrentUpstreamName')
+	" 	execute('syntax match TwiggyBranchCurrentUpstreamName /\V' .. escape(name, '\/\') .. '/ contained')
+	" elseif !a:conceal_remote && !empty(a:upstream)
+	" 	let parts = split(a:upstream, '/')
+	" 	let prefix = ''
+	" 	let name = join(parts[0 :], '/')
+
+	" 	execute('syntax match TwiggyBranchCurrentUpstream /\v\(r\)' .. escape(a:upstream, '\/\') .. '$/ contains=TwiggyBranchCurrentUpstreamPrefix,TwiggyBranchCurrentUpstreamName')
+	" 	execute('syntax match TwiggyBranchCurrentUpstreamPrefix /\V(r)' .. escape(prefix, '\/\') .. '/ contained conceal contains=TwiggyBranchPrefix nextgroup=TwiggyBranchCurrentUpstreamName')
+	" 	execute('syntax match TwiggyBranchCurrentUpstreamName /\V' .. escape(name, '\/\') .. '/ contained')
+	" endif
 
 	syntax match TwiggyBranchPrefix /\v\(l\)/ contained conceal
 	syntax match TwiggyBranchPrefix /\v\(r\)/ contained conceal
   endfunction
 
   let current_branch = s:get_current_branch()
-  let current_branch_remote = s:get_current_branch_remote()
-  call RenderBranches(current_branch, current_branch_remote, g:twiggy_group_locals_by_slash, g:twiggy_group_remotes_by_slash)
+  let upstream = s:get_current_branch_remote_upstream()
+  let push = s:get_current_branch_remote_push()
+  call RenderBranches(current_branch, upstream, push, g:twiggy_group_locals_by_slash, g:twiggy_group_remotes_by_slash)
   " ────────────────────────────────────────────────────────────────────────
 
   exec "syntax match TwiggyCurrent '\\V\\%1c" . s:icons.current . "'"
@@ -1722,7 +1767,7 @@ function! s:Continue(type) abort
   if a:type ==? 'stash'
       call s:ContinueStash()
   else
-    call s:git_cmd(a:type . ' --continue', 1, {"no_dispatch": 1})
+    call s:git_cmd(a:type . ' --continue', 1, {"no_dispatch": 0})
   endif
 
   redraw
@@ -1751,7 +1796,7 @@ endfunction
 
 "     {{{3 Stash Continue
 function! s:ContinueStash() abort
-  call s:git_cmd('commit', 1, {"no_dispatch": 1})
+  call s:git_cmd('commit', 1, {"no_dispatch": 0})
 endfunction
 
 "     {{{3 Stash Abort
