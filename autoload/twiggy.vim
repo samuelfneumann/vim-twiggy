@@ -625,7 +625,9 @@ function! s:quickhelp_view() abort
   call add(output, '<space>R  Refresh')
   call add(output, '<C-N>	  jump to next group')
   call add(output, '<C-P>	  jump to prev group')
-  call add(output, 'J         jump to curr branch')
+  call add(output, 'JL        jump to curr branch')
+  call add(output, 'JU        jump to curr upstream')
+  call add(output, 'JP        jump to curr push')
   call add(output, 'q         quit')
   call add(output, '?         toggle this help')
   call add(output, '---------------------------')
@@ -952,6 +954,16 @@ function! s:jump_to_current_branch() abort
   call search(s:icons.current)
 endfunction
 
+function! s:jump_to_current_upstream() abort
+  let upstream = s:get_current_branch_remote_upstream()
+  call search(upstream)
+endfunction
+
+function! s:jump_to_current_push() abort
+  let push = s:get_current_branch_remote_upstream()
+  call search(push)
+endfunction
+
 "     {{{3 bufrefresh
 function! s:bufrefresh()
   if &ft ==# 'gitcommit'
@@ -1140,7 +1152,9 @@ function! s:Render() abort
   nnoremap <buffer> <silent> [[  <cmd>call <SID>traverse_groups('k', 0, v:count1)<CR>
   nnoremap <buffer> <silent> <C-N>  <cmd>call <SID>traverse_groups('j', 0, v:count1)<CR>
   nnoremap <buffer> <silent> <C-P>  <cmd>call <SID>traverse_groups('k', 0, v:count1)<CR>
-  nnoremap <buffer> <silent> J      <cmd>call <SID>jump_to_current_branch()<CR>
+  nnoremap <buffer> <silent> JL      <cmd>call <SID>jump_to_current_branch()<CR>
+  nnoremap <buffer> <silent> JU      <cmd>call <SID>jump_to_current_upstream()<CR>
+  nnoremap <buffer> <silent> JP      <cmd>call <SID>jump_to_current_push()<CR>
   if s:showing_full_ui()
     nnoremap <buffer> <silent> gg    :normal! 4gg<CR>
   else
@@ -1161,8 +1175,7 @@ function! s:Render() abort
   call s:mapping('dd',      'Delete',           [])
   call s:mapping('yy',      'Yank',	            [])
   call s:mapping('F',       'Fetch',            [0]) " deprecated
-  call s:mapping('f',       'Fetch',            [0])
-  call s:mapping('m',       'Merge',            [0, ''])
+  call s:mapping('f',       'Fetch',            [0]) call s:mapping('m',       'Merge',            [0, ''])
   call s:mapping('M',       'Merge',            [1, ''])
   call s:mapping('gm',      'Merge',            [0, '--no-ff'])
   call s:mapping('gM',      'Merge',            [1, '--no-ff'])
