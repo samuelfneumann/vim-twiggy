@@ -1253,11 +1253,10 @@ function! s:Render() abort
 	endif
 	syntax match TwiggyBranchBranchName   /\v[-_[:alnum:].\/]+/ contained
 
-	" remote: match either (r)remote/prefix/name or (r)
+	" remote: match either (r)remote/prefix/name or (r), concealing
+	" '(r)remote/' or '(r)', whichever is longer
 	syntax match TwiggyBranchRemoteBranchPrefix /\v\(r\)/ contained conceal nextgroup=TwiggyBranchRemoteBranchName contains=TwiggyBranchPrefix
-	if a:conceal_remote
-		syntax match TwiggyBranchRemoteBranchPrefix /\v\(r\)([-_[:alnum:].]+\/){1,2}/ contained conceal nextgroup=TwiggyBranchRemoteBranchName contains=TwiggyBranchPrefix
-	endif
+	syntax match TwiggyBranchRemoteBranchPrefix /\v\(r\)([-_[:alnum:].]+\/){1,2}/ contained conceal nextgroup=TwiggyBranchRemoteBranchName contains=TwiggyBranchPrefix
 	syntax match TwiggyBranchRemoteBranchName   /\v[-_[:alnum:].\/]+/ contained
  
 	if a:conceal_local && !empty(a:current)
@@ -1297,8 +1296,8 @@ function! s:Render() abort
 			execute('syntax match TwiggyBranchCurrent' . a:type . 'Name /\V' .. escape(name, '\/\') .. '/ contained')
 		elseif !a:conceal_remote && !empty(a:remote)
 			let parts = split(a:remote, '/')
-			let prefix = ''
-			let name = join(parts[0 :], '/')
+			let prefix = parts[0] .. '/'
+			let name = join(parts[1 :], '/')
 
 			execute('syntax match TwiggyBranchCurrent' . a:type . ' /\v\(r\)' .. escape(a:remote, '\/\') .. '$/ contains=TwiggyBranchCurrent' . a:type . 'Prefix,TwiggyBranchCurrent' . a:type . 'Name')
 			execute('syntax match TwiggyBranchCurrent' . a:type . 'Prefix /\V(r)' .. escape(prefix, '\/\') .. '/ contained conceal contains=TwiggyBranchPrefix nextgroup=TwiggyBranchCurrent' . a:type . 'Name')
