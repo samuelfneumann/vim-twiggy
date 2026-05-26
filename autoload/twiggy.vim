@@ -1256,7 +1256,11 @@ function! s:Render() abort
 	" remote: match either (r)remote/prefix/name or (r), concealing
 	" '(r)remote/' or '(r)', whichever is longer
 	syntax match TwiggyBranchRemoteBranchPrefix /\v\(r\)/ contained conceal nextgroup=TwiggyBranchRemoteBranchName contains=TwiggyBranchPrefix
-	syntax match TwiggyBranchRemoteBranchPrefix /\v\(r\)([-_[:alnum:].]+\/){1,2}/ contained conceal nextgroup=TwiggyBranchRemoteBranchName contains=TwiggyBranchPrefix
+	if a:conceal_remote
+		syntax match TwiggyBranchRemoteBranchPrefix /\v\(r\)([-_[:alnum:].]+\/){1,2}/ contained conceal nextgroup=TwiggyBranchRemoteBranchName contains=TwiggyBranchPrefix
+	else
+		syntax match TwiggyBranchRemoteBranchPrefix /\v\(r\)([-_[:alnum:].]+\/)/ contained conceal nextgroup=TwiggyBranchRemoteBranchName contains=TwiggyBranchPrefix
+	endif
 	syntax match TwiggyBranchRemoteBranchName   /\v[-_[:alnum:].\/]+/ contained
  
 	if a:conceal_local && !empty(a:current)
