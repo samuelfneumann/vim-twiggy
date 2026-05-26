@@ -1175,7 +1175,8 @@ function! s:Render() abort
   call s:mapping('dd',      'Delete',           [])
   call s:mapping('yy',      'Yank',	            [])
   call s:mapping('F',       'Fetch',            [0]) " deprecated
-  call s:mapping('f',       'Fetch',            [0]) call s:mapping('m',       'Merge',            [0, ''])
+  call s:mapping('f',       'Fetch',            [0])
+  call s:mapping('m',       'Merge',            [0, ''])
   call s:mapping('M',       'Merge',            [1, ''])
   call s:mapping('gm',      'Merge',            [0, '--no-ff'])
   call s:mapping('gM',      'Merge',            [1, '--no-ff'])
