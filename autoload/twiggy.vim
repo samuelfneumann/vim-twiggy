@@ -638,7 +638,7 @@ function! s:quickhelp_view() abort
   call add(output, 'JU        jump to curr upstream')
   call add(output, 'JP        jump to curr push')
   call add(output, 'q         quit')
-  call add(output, '?         toggle this help')
+  call add(output, 'g?        toggle this help')
   call add(output, '---------------------------')
   call add(output, 'w/ the cursor on a branch:')
   call add(output, '---------------------------')
@@ -1029,7 +1029,7 @@ function! s:Render() abort
 
   nnoremap <buffer> <silent> q :<C-U>call <SID>Close()<CR>
   if g:twiggy_enable_quickhelp
-    nnoremap <buffer> <silent> ? :<C-U>call <SID>Quickhelp()<CR>
+    nnoremap <buffer> <silent> g? :<C-U>call <SID>Quickhelp()<CR>
   endif
 
   autocmd! BufWinLeave twiggy://*
@@ -1056,7 +1056,7 @@ function! s:Render() abort
   if s:showing_full_ui() && !s:attn_mode()
     " We don't need to manually add a second empty line here since
     " s:standard_view() will automatically add one.
-    call extend(output, ["Twiggy\tHelp: ?"])
+    call extend(output, ["Twiggy\tHelp: g?"])
   endif
 
   if s:attn_mode()
@@ -1388,7 +1388,7 @@ function! s:Render() abort
     highlight default link TwiggyHeader Title
     syntax match TwiggyHelpHint "\v%1lHelp: "
     highlight default link TwiggyHelpHint fugitiveHelpHeader
-    syntax match TwiggyHelpHintKey "\v%1l\?"
+    syntax match TwiggyHelpHintKey "\v%1l\g\?"
     highlight default link TwiggyHelpHintKey fugitiveHelpTag
   endif
 
@@ -1416,7 +1416,7 @@ function! s:Quickhelp() abort
   let bufnr = bufnr('')
 
   nnoremap <buffer> <silent> q :quit<CR>
-  nnoremap <buffer> <silent> ? :Twiggy<CR>
+  nnoremap <buffer> <silent> g? :Twiggy<CR>
 
   call append(0, s:quickhelp_view())
   normal! G
