@@ -1056,7 +1056,7 @@ function! s:Render() abort
   if s:showing_full_ui() && !s:attn_mode()
     " We don't need to manually add a second empty line here since
     " s:standard_view() will automatically add one.
-    call extend(output, ["press ? for help"])
+    call extend(output, ["Twiggy\tHelp: ?"])
   endif
 
   if s:attn_mode()
@@ -1384,10 +1384,12 @@ function! s:Render() abort
   highlight default link TwiggyDetachedText Identifier
 
   if s:showing_full_ui()
-    syntax match TwiggyHelpHint "\v%1l"
-    highlight default link TwiggyHelpHint Normal
+    syntax match TwiggyHeader "\v%1lTwiggy"
+    highlight default link TwiggyHeader Title
+    syntax match TwiggyHelpHint "\v%1lHelp: "
+    highlight default link TwiggyHelpHint Question
     syntax match TwiggyHelpHintKey "\v%1l\?"
-    highlight default link TwiggyHelpHintKey Identifier
+    highlight default link TwiggyHelpHintKey Question
   endif
 
   " }}}
@@ -1428,7 +1430,7 @@ function! s:Quickhelp() abort
   syntax match TwiggyQuickhelpSpecial "\v\`[a-zA-Z]+\`"
   highlight link TwiggyQuickhelpSpecial Identifier
   syntax match TwiggyQuickhelpHeader "\v[A-Za-z ]+\n[=]+"
-  highlight link TwiggyQuickhelpHeader String
+  highlight link TwiggyQuickhelpHeader Title
   syntax match TwiggyQuickhelpSectionHeader "\v[\-]+\n[a-z,\/ \:]+\n[\-]+"
   highlight link TwiggyQuickhelpSectionHeader String
   if g:twiggy_show_full_ui
