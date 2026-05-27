@@ -1303,7 +1303,6 @@ function! s:Render() abort
 	elseif !a:conceal_local && !empty(a:current)
 		execute('syntax match TwiggyBranchCurrent /\v' .. s:branch_marker_vmagic['local'] .. escape(a:current, '\/\') .. '$/ contains=TwiggyBranchCurrentPrefix,TwiggyBranchCurrentName')
 		execute 'syntax match TwiggyBranchCurrentPrefix /\V' . escape(s:branch_marker['local'], '\/') . '/ contained conceal contains=TwiggyBranchPrefix nextgroup=TwiggyBranchCurrentName'
-		echom a:current
 		execute('syntax match TwiggyBranchCurrentName /\V' .. escape(a:current, '\/\') .. '/ contained')
 	endif
 
@@ -1372,6 +1371,15 @@ function! s:Render() abort
   syntax match TwiggySortText '\v[[a-z]+]'
   highlight default link TwiggySortText Comment
 
+  if s:showing_full_ui()
+    syntax match TwiggyHeader "\v%1l^Twiggy"
+    highlight default link TwiggyHeader Title
+    syntax match TwiggyHelpHint "\v%1lHelp: "
+    highlight default link TwiggyHelpHint fugitiveHelpHeader
+    syntax match TwiggyHelpHintKey "\v%1l\g\?"
+    highlight default link TwiggyHelpHintKey fugitiveHelpTag
+  endif
+
   if exists('s:branches_not_in_reflog') && len(s:branches_not_in_reflog)
     return
     exec "syntax match TwiggyNotInReflog '" .
@@ -1382,15 +1390,6 @@ function! s:Render() abort
 
   exec "syntax match TwiggyDetachedText '\\v%3vHEAD\\@[a-z0-9]+'"
   highlight default link TwiggyDetachedText Identifier
-
-  if s:showing_full_ui()
-    syntax match TwiggyHeader "\v%1lTwiggy"
-    highlight default link TwiggyHeader Title
-    syntax match TwiggyHelpHint "\v%1lHelp: "
-    highlight default link TwiggyHelpHint fugitiveHelpHeader
-    syntax match TwiggyHelpHintKey "\v%1l\g\?"
-    highlight default link TwiggyHelpHintKey fugitiveHelpTag
-  endif
 
   " }}}
 endfunction
