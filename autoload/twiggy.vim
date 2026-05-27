@@ -1389,7 +1389,7 @@ function! s:Render() abort
     syntax match TwiggyHelpHint "\v%1lHelp: "
     highlight default link TwiggyHelpHint fugitiveHelpHeader
     syntax match TwiggyHelpHintKey "\v%1l\?"
-    highlight default link TwiggyHelpHintKey fugitiveHelpHeader
+    highlight default link TwiggyHelpHintKey fugitiveHelpTag
   endif
 
   " }}}
