@@ -1424,7 +1424,7 @@ function! s:Quickhelp() abort
   setlocal nomodifiable
 
   syntax clear
-  syntax match TwiggyQuickhelpMapping "\v%<7c[A-Za-z\-\?\^\<\>!,.]"
+  syntax match TwiggyQuickhelpMapping "\v%<9c[A-Za-z\-\?\^\<\>!,.]"
   highlight link TwiggyQuickhelpMapping Identifier
   syntax match TwiggyQuickhelpSpecial "\v\`[a-zA-Z]+\`"
   highlight link TwiggyQuickhelpSpecial Identifier
