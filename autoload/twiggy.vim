@@ -1387,9 +1387,9 @@ function! s:Render() abort
     syntax match TwiggyHeader "\v%1lTwiggy"
     highlight default link TwiggyHeader Title
     syntax match TwiggyHelpHint "\v%1lHelp: "
-    highlight default link TwiggyHelpHint Question
+    highlight default link TwiggyHelpHint fugitiveHelpHeader
     syntax match TwiggyHelpHintKey "\v%1l\?"
-    highlight default link TwiggyHelpHintKey Question
+    highlight default link TwiggyHelpHintKey fugitiveHelpHeader
   endif
 
   " }}}
