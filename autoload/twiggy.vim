@@ -42,7 +42,7 @@ endfunction
 function! s:mapping(mapping, fn, args) abort
   let s:mappings[s:encode_mapping(a:mapping)] = [a:fn, a:args]
   exe "nnoremap <buffer> <silent> " .
-        \ a:mapping . " :<C-U>call <SID>call('" .
+        \ a:mapping . " <CMD>call <SID>call('" .
         \ s:encode_mapping(a:mapping) . "')<CR>"
 endfunction
 
@@ -1134,7 +1134,7 @@ function! s:Render() abort
 	" autocmd User FugitiveChanged let t:branches_changed = 1
 	" autocmd CmdlineLeave * if exists("t:branches_changed") && t:branches_changed | let t:branches_changed = 0 | call <SID>Refresh() | endif
 	
-    autocmd CmdlineLeave * if histget(":", -1) =~ '\v^G(it)?\s+(fetch|pull|push|switch|checkout|branch)' | call <SID>Refresh() |let t:branches_changed = 1 | endif
+    autocmd CmdlineLeave * if histget(":", -1) =~ '\v^G(it)?\s+(fetch|pull|push|switch|checkout|branch)' | call <SID>Refresh() | let t:branches_changed = 1 | endif
 	autocmd User FugitiveChanged if exists("t:branches_changed") && t:branches_changed | let t:branches_changed = 0 | call <SID>Refresh() | endif
 
 	autocmd User WorktreeCheckout call <SID>Refresh() 
