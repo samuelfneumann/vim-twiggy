@@ -1771,7 +1771,7 @@ function! s:Continue(type) abort
   if a:type ==? 'stash'
       call s:ContinueStash()
   else
-    call s:git_cmd(a:type . ' --continue', 1, {"no_dispatch": 0})
+    call s:git_cmd(a:type . ' --continue', 1, {"no_dispatch": 1})
   endif
 
   redraw
@@ -1800,7 +1800,7 @@ endfunction
 
 "     {{{3 Stash Continue
 function! s:ContinueStash() abort
-  call s:git_cmd('commit', 1, {"no_dispatch": 0})
+  call s:git_cmd('commit', 1, {"no_dispatch": 1})
 endfunction
 
 "     {{{3 Stash Abort
