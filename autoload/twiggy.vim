@@ -360,12 +360,12 @@ function! twiggy#get_branches() abort
     let head = s:git_cmd('rev-parse --symbolic-full-name --abbrev-ref HEAD', 0)[0]
     if head ==# "HEAD"
       call add(locals_sorted, {
-            \ 'decoration': ' '.s:icons['detached'],
+            \ 'decoration': s:icons['current'].s:icons['detached'],
             \ 'status': 'detached',
             \ 'fullname': 'HEAD',
             \ 'name': 'HEAD@'.s:git_cmd('rev-parse --revs-only --short HEAD', 0)[0],
             \ 'is_local': 1,
-            \ 'current': 0,
+            \ 'current': 1,
             \ 'remote': s:git_cmd('remote', 0)[0],
             \ 'type': 'local',
             \ 'tracking': '',
