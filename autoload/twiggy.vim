@@ -360,7 +360,7 @@ function! twiggy#get_branches() abort
     let head = s:git_cmd('rev-parse --symbolic-full-name --abbrev-ref HEAD', 0)[0]
     if head ==# "HEAD"
       call add(locals_sorted, {
-            \ 'decoration': s:icons['detached'].' ',
+            \ 'decoration': ' '.s:icons['detached'],
             \ 'status': 'detached',
             \ 'fullname': 'HEAD',
             \ 'name': 'HEAD@'.s:git_cmd('rev-parse --revs-only --short HEAD', 0)[0],
@@ -1363,7 +1363,7 @@ function! s:Render() abort
   highlight default link TwiggyAheadBehind Type
 
   exec "syntax match TwiggyDetached '\\V\\%2c" . s:icons.detached . "'"
-  highlight default link TwiggyDetached Type
+  highlight default link TwiggyDetached ErrorMsg
 
   exec "syntax match TwiggyUnmerged '\\V\\%1c" . s:icons.unmerged . "'"
   highlight default link TwiggyUnmerged Identifier
@@ -1380,6 +1380,9 @@ function! s:Render() abort
     highlight default link TwiggyHelpHintKey fugitiveHelpTag
   endif
 
+  exec "syntax match TwiggyDetachedText '\\v%3vHEAD\\@[a-z0-9]+'"
+  highlight default link TwiggyDetachedText Special
+
   if exists('s:branches_not_in_reflog') && len(s:branches_not_in_reflog)
     return
     exec "syntax match TwiggyNotInReflog '" .
@@ -1387,9 +1390,6 @@ function! s:Render() abort
           \ "'"
     highlight default link TwiggyNotInReflog Comment
   endif
-
-  exec "syntax match TwiggyDetachedText '\\v%3vHEAD\\@[a-z0-9]+'"
-  highlight default link TwiggyDetachedText Identifier
 
   " }}}
 endfunction
