@@ -9,6 +9,8 @@ if exists('g:autoloaded_twiggy')
 endif
 let g:autoloaded_twiggy = 1
 
+highlight default link TwiggyCommitMsg Normal
+
 " {{{1 Utility
 "   {{{2 buffocus
 function! s:buffocus(bufnr) abort
@@ -60,6 +62,15 @@ let s:requires_buf_refresh     = 1
 let s:sorted      = 0
 let s:git_cmd_run = 0
 
+let s:branch_marker = {
+      \ 'local': '(l)',
+      \ 'remote': '(r)'
+      \ }
+let s:branch_marker_vmagic = {
+      \ 'local': '\(l\)',
+      \ 'remote': '\(r\)'
+      \ }
+
 " {{{1 Icons
 if exists('g:twiggy_icons')
       \ && type(g:twiggy_icons) == 3
@@ -71,6 +82,7 @@ else
   let s:icon_set = ['*', '=', '+', '-', '~', '%', 'x']
 endif
 
+let s:ellipsis = has('multi_byte') ? '…' : '...'
 let s:icons = {}
 let s:icons.current  = s:icon_set[0]
 let s:icons.tracking = s:icon_set[1]
@@ -248,9 +260,11 @@ function! s:parse_branch(branch, type) abort
       let group = matchstr(branch.fullname, '\v[^/]*')
       let branch.group = group
       let branch.name = s:sub(branch.fullname, group . '/', '')
+      let branch.display_name = s:branch_marker['local'] . branch.fullname
     else
       let branch.group = 'local'
       let branch.name = branch.fullname
+      let branch.display_name = s:branch_marker['local'] . branch.fullname
     endif
   else
     let branch.is_local = 0
@@ -262,10 +276,16 @@ function! s:parse_branch(branch, type) abort
       let group = matchstr(branch.name, '\v[^/]*')
       let branch.group = join([branch_split[0], group], '/')
       let branch.name = s:sub(branch.name, group . '/', '')
+      let branch.display_name = s:branch_marker['remote'] . branch.fullname
     else
       let branch.group = branch_split[0]
       let branch.name  = join(branch_split[1:], '/')
+      let branch.display_name = s:branch_marker['remote'] . branch.fullname
     endif
+  endif
+
+  if !has_key(branch, 'display_name')
+	  let branch.display_name = branch.name
   endif
 
   let remote_details = pieces[3]
@@ -273,13 +293,13 @@ function! s:parse_branch(branch, type) abort
     let remote_details = remote_details . ': ' . pieces[4][1:-2]
   endif
 
-  if remote_details ==# ''
-    let branch.details = join([pieces[2], pieces[5]], ' ')
-  else
-    let remote_details = '['.remote_details.']'
-    let branch.details = join([pieces[2], remote_details, pieces[5]], ' ')
-  endif
+  let branch.hash = pieces[2]
+  let branch.msg = pieces[5]
+  let branch.remote_branch = pieces[3]
+  let branch.remote_info = pieces[4][1:-2]
+  let branch.remote_details = remote_details
 
+  if empty(branch.name) | return {} | endif
   return branch
 endfunction
 
@@ -306,7 +326,10 @@ function! s:_git_branch_vv(type) abort
         \ '%(contents:subject)',
         \ ], "\t\t")
   for branch in s:git_cmd('for-each-ref refs/' . a:type . " --format=$'".format."'", 0)
-    call add(branches, s:parse_branch(branch, a:type))
+	let parsed = s:parse_branch(branch, a:type)
+	if !empty(parsed) && !empty(parsed.name)
+		call add(branches, parsed)
+	endif
   endfor
 
   return branches
@@ -441,6 +464,20 @@ function! s:get_current_branch() abort
   return s:git_cmd('rev-parse --abbrev-ref HEAD', 0)[0]
 endfunction
 
+"   {{{2 get_current_branch_remote_upstream
+function! s:get_current_branch_remote_upstream() abort
+  let remote = s:git_cmd('rev-parse --abbrev-ref --symbolic-full-name @{u} 2>/dev/null', 0)
+  if empty(remote) | return "" | endif
+  return remote[0]
+endfunction
+
+"   {{{2 get_current_branch_remote_push
+function! s:get_current_branch_remote_push() abort
+  let remote = s:git_cmd('rev-parse --abbrev-ref --symbolic-full-name @{push} 2>/dev/null', 0)
+  if empty(remote) | return "" | endif
+  return remote[0]
+endfunction
+
 "   {{{2 branch_exists
 function! s:branch_exists(branch) abort
   call s:git_cmd('show-ref --verify --quiet refs/heads/' . a:branch, 0)
@@ -515,6 +552,8 @@ function! s:standard_view() abort
 
   let branches = twiggy#get_branches()
   for branch in branches
+	if empty(branch.name) | continue | endif
+
     if !has_key(groups[branch.type], branch.group)
       let groups[branch.type][branch.group] = {}
       if branch.group ==# 'local'
@@ -555,7 +594,7 @@ function! s:standard_view() abort
       call add(output, group_ref.name . ' [' . sort_name . ']')
 
       for branch in group_ref['branches']
-        call add(output, branch.decoration . branch.name)
+        call add(output, branch.decoration . get(branch, 'display_name', branch.name))
         let line = line + 1
         let branch.line = line
         let s:branch_line_refs[line] = branch
@@ -595,17 +634,23 @@ function! s:quickhelp_view() abort
   call add(output, '<space>R  Refresh')
   call add(output, '<C-N>	  jump to next group')
   call add(output, '<C-P>	  jump to prev group')
-  call add(output, 'J         jump to curr branch')
+  call add(output, 'JL        jump to curr branch')
+  call add(output, 'JU        jump to curr upstream')
+  call add(output, 'JP        jump to curr push')
   call add(output, 'q         quit')
-  call add(output, '?         toggle this help')
+  call add(output, 'g?        toggle this help')
   call add(output, '---------------------------')
   call add(output, 'w/ the cursor on a branch:')
   call add(output, '---------------------------')
+  call add(output, '<CR>  checkout')
   call add(output, 'c     checkout')
   call add(output, 'o     checkout')
-  call add(output, '<CR>  checkout')
+  call add(output, 'cm    checkout --merge')
+  call add(output, 'om    checkout --merge')
   call add(output, 'C     checkout remote')
   call add(output, 'O     checkout remote')
+  call add(output, 'Cm    checkout --merge remote')
+  call add(output, 'Om    checkout --merge remote')
   call add(output, 'gc    checkout as: <name>')
   call add(output, 'go    checkout as: <name>')
   call add(output, 'f     fetch remote')
@@ -642,6 +687,7 @@ function! s:quickhelp_view() abort
   call add(output, 'gi    cycle remote sorts')
   call add(output, 'gI    `gi` in reverse')
   call add(output, 'a     toggle slash-grouping')
+  call add(output, 'ga    toggle slash-grouping remotes')
   if g:twiggy_show_full_ui
     call add(output, '')
     call add(output, '****************************')
@@ -702,9 +748,16 @@ function! s:show_branch_details() abort
   let line = line('.')
   if has_key(s:branch_line_refs, line)
     let max_len = &columns - 16
-    let details = s:branch_line_refs[line].details
-    if len(details) > max_len
-      let details = details[0:max_len] . '...'
+	let decor = s:branch_line_refs[line].decoration
+	let name = s:branch_line_refs[line].name 
+	let hash = get(s:branch_line_refs[line], "hash", "")
+	let msg = get(s:branch_line_refs[line], "msg", "")
+	let remote_branch = get(s:branch_line_refs[line], "remote_branch", "")
+	let remote_info = get(s:branch_line_refs[line], "remote_info", "")
+	let status = get(s:branch_line_refs[line], "status", "")
+	let total_len = 8 + strcharlen(decor) + len(msg) + len(name) + len(hash) + len(remote_branch) + len(remote_info)
+    if total_len > max_len
+      let msg = msg[0:max_len + len(msg) - total_len - 1 - strcharlen(s:ellipsis)] . s:ellipsis
     endif
     redraw
     " Hacky deprecation code
@@ -715,7 +768,71 @@ function! s:show_branch_details() abort
       echohl None
       unlet t:twiggy_deprecation_notice
     else
-      echo details
+
+	  for icon in decor
+		  if icon ==# s:icons.current
+			  echohl TwiggyCurrent
+		  elseif icon ==# s:icons.tracking
+			  echohl TwiggyTracking
+		  elseif icon ==# s:icons.ahead
+			  echohl TwiggyAhead
+		  elseif icon ==# s:icons.behind
+			  echohl TwiggyBehind
+		  elseif icon ==# s:icons.both
+			  echohl TwiggyAheadBehind
+		  elseif icon ==# s:icons.detached
+			  echohl TwiggyDetached
+		  elseif icon ==# s:icons.unmerged
+			  echohl TwiggyUnmerged
+		  else
+			  echohl ErrorMsg
+		  endif
+		  echon icon
+	  endfor
+	  echohl clear
+
+	  if name =~# '\v^HEAD\@[0-9a-fA-F]+'
+	    echohl TwiggyDetachedText
+	  else
+	    echohl TwiggyBranchCurrentName
+	  endif
+	  echon name 
+	  echohl clear
+
+	  if !empty(hash)
+		  echon ' ('
+		  echohl TwiggyCommitHash
+		  echon hash
+		  echohl clear
+		  echon ')'
+	  endif
+
+	  if !empty(remote_branch)
+		  echon ' [' 
+		  echohl TwiggyUpstream
+		  echon remote_branch
+		  echohl clear
+		  if !empty(remote_info)
+			  echon ': '
+			  if status ==# 'ahead'
+				  echohl TwiggyAhead
+			  elseif status ==# 'behind'
+				  echohl TwiggyBehind
+			  elseif status ==# 'both'
+				  echohl TwiggyAheadBehind
+			  endif
+			  echon remote_info
+			  echohl clear
+		  endif
+		  echon ']'
+	  endif
+
+	  if !empty(msg)
+		  echohl TwiggyCommitMessage
+		  echon ' ' . msg
+		  echohl clear
+		  echon
+	  endif
     endif
   end
 endfunction
@@ -846,6 +963,16 @@ function! s:jump_to_current_branch() abort
   call search(s:icons.current)
 endfunction
 
+function! s:jump_to_current_upstream() abort
+  let upstream = s:get_current_branch_remote_upstream()
+  call search(upstream)
+endfunction
+
+function! s:jump_to_current_push() abort
+  let push = s:get_current_branch_remote_upstream()
+  call search(push)
+endfunction
+
 "     {{{3 bufrefresh
 function! s:bufrefresh()
   if &ft ==# 'gitcommit'
@@ -902,7 +1029,7 @@ function! s:Render() abort
 
   nnoremap <buffer> <silent> q :<C-U>call <SID>Close()<CR>
   if g:twiggy_enable_quickhelp
-    nnoremap <buffer> <silent> ? :<C-U>call <SID>Quickhelp()<CR>
+    nnoremap <buffer> <silent> g? :<C-U>call <SID>Quickhelp()<CR>
   endif
 
   autocmd! BufWinLeave twiggy://*
@@ -929,7 +1056,7 @@ function! s:Render() abort
   if s:showing_full_ui() && !s:attn_mode()
     " We don't need to manually add a second empty line here since
     " s:standard_view() will automatically add one.
-    call extend(output, ["press ? for help"])
+    call extend(output, ["Twiggy\tHelp: g?"])
   endif
 
   if s:attn_mode()
@@ -990,6 +1117,10 @@ function! s:Render() abort
     return
   endif
 
+  highlight default link TwiggyCommitHash fugitiveHash
+  highlight default link TwiggyUpstreamPush Directory
+  highlight default link TwiggyPush Error
+  highlight default link TwiggyUpstream fugitiveSymbolicRef
   call s:show_branch_details()
   let s:total_lines = len(output)
 
@@ -1030,18 +1161,24 @@ function! s:Render() abort
   nnoremap <buffer> <silent> [[  <cmd>call <SID>traverse_groups('k', 0, v:count1)<CR>
   nnoremap <buffer> <silent> <C-N>  <cmd>call <SID>traverse_groups('j', 0, v:count1)<CR>
   nnoremap <buffer> <silent> <C-P>  <cmd>call <SID>traverse_groups('k', 0, v:count1)<CR>
-  nnoremap <buffer> <silent> J      <cmd>call <SID>jump_to_current_branch()<CR>
+  nnoremap <buffer> <silent> JL      <cmd>call <SID>jump_to_current_branch()<CR>
+  nnoremap <buffer> <silent> JU      <cmd>call <SID>jump_to_current_upstream()<CR>
+  nnoremap <buffer> <silent> JP      <cmd>call <SID>jump_to_current_push()<CR>
   if s:showing_full_ui()
     nnoremap <buffer> <silent> gg    :normal! 4gg<CR>
   else
     nnoremap <buffer> <silent> gg    :normal! 2gg<CR>
   endif
 
-  call s:mapping('<CR>',    'Checkout',         [1])
-  call s:mapping('c',       'Checkout',         [1])
-  call s:mapping('C',       'Checkout',         [0])
-  call s:mapping('o',       'Checkout',         [1])
-  call s:mapping('O',       'Checkout',         [0])
+  call s:mapping('<CR>',    'Checkout',         [1, 0])
+  call s:mapping('c',       'Checkout',         [1, 0])
+  call s:mapping('C',       'Checkout',         [0, 0])
+  call s:mapping('o',       'Checkout',         [1, 0])
+  call s:mapping('O',       'Checkout',         [0, 0])
+  call s:mapping('cm',      'Checkout',         [1, 1])
+  call s:mapping('Cm',      'Checkout',         [0, 1])
+  call s:mapping('om',      'Checkout',         [1, 1])
+  call s:mapping('Om',      'Checkout',         [0, 1])
   call s:mapping('gc',      'CheckoutAs',       [])
   call s:mapping('go',      'CheckoutAs',       [])
   call s:mapping('dd',      'Delete',           [])
@@ -1104,9 +1241,113 @@ function! s:Render() abort
 
   exec "syntax match TwiggyGroup '\\v(^[^\\ " . s:icons.current . "]+)'"
   highlight default link TwiggyGroup Type
+  
+  highlight default link TwiggyBranch Comment
+  highlight default link TwiggyRemoteBranch Comment
+  highlight default link TwiggyBranchPrefix Comment
+  highlight default link TwiggyBranchBranchPrefix Comment
+  highlight default link TwiggyBranchCurrentPrefix Comment
+  highlight default link TwiggyBranchCurrentName TwiggyCurrent
+  highlight default link TwiggyBranchCurrentUpstreamName TwiggyUpstream
+  highlight default link TwiggyBranchCurrentPushName TwiggyPush
+  highlight default link TwiggyBranchCurrentUpstreamPushName TwiggyUpstreamPush
+  highlight default link TwiggyBranchCurrent Identifier
 
-  exec "syntax match TwiggyCurrent '\\v%3v" . s:get_current_branch() . "$'"
-  highlight default link TwiggyCurrent Identifier
+  " ────────────────────────────────────────────────────────────────────────
+  " Render Branches w/ and w/o slash sorting
+  " ────────────────────────────────────────────────────────────────────────
+  let &l:conceallevel = 2
+  let &l:concealcursor = 'nvic'
+  function! RenderBranches(current, upstream, push, conceal_local, conceal_remote)
+    syntax clear TwiggyBranch
+    syntax clear TwiggyRemoteBranch
+    syntax clear TwiggyBranchPrefix
+    syntax clear TwiggyBranchCurrent
+    syntax clear TwiggyBranchCurrentPrefix
+    syntax clear TwiggyBranchCurrentName
+
+	execute 'syntax region TwiggyBranch start=/\v' . s:branch_marker_vmagic['local'] . '/ end=/\v\S+/ contains=TwiggyBranchBranchPrefix,TwiggyBranchBranchName oneline'
+	execute 'syntax region TwiggyRemoteBranch start=/\v' . s:branch_marker_vmagic['remote'] . '/ end=/\v\S+/ contains=TwiggyBranchRemoteBranchPrefix,TwiggyBranchRemoteBranchName oneline'
+
+	" local: match either the local marker plus prefix/name or the marker alone
+	execute 'syntax match TwiggyBranchBranchPrefix /\v' . s:branch_marker_vmagic['local'] . '/ contained conceal nextgroup=TwiggyBranchBranchName contains=TwiggyBranchPrefix'
+	if a:conceal_local
+		execute 'syntax match TwiggyBranchBranchPrefix /\v' . s:branch_marker_vmagic['local'] . '[-_[:alnum:].]+\// contained conceal nextgroup=TwiggyBranchBranchName contains=TwiggyBranchPrefix'
+	endif
+	syntax match TwiggyBranchBranchName   /\v[-_[:alnum:].\/]+/ contained
+
+	" remote: match either the remote marker plus remote/prefix/name or the marker alone
+	" concealing the longer prefix when slash grouping is enabled
+	execute 'syntax match TwiggyBranchRemoteBranchPrefix /\v' . s:branch_marker_vmagic['remote'] . '/ contained conceal nextgroup=TwiggyBranchRemoteBranchName contains=TwiggyBranchPrefix'
+	if a:conceal_remote
+		execute 'syntax match TwiggyBranchRemoteBranchPrefix /\v' . s:branch_marker_vmagic['remote'] . '([-_[:alnum:].]+\/){1,2}/ contained conceal nextgroup=TwiggyBranchRemoteBranchName contains=TwiggyBranchPrefix'
+	else
+		execute 'syntax match TwiggyBranchRemoteBranchPrefix /\v' . s:branch_marker_vmagic['remote'] . '([-_[:alnum:].]+\/)/ contained conceal nextgroup=TwiggyBranchRemoteBranchName contains=TwiggyBranchPrefix'
+	endif
+	syntax match TwiggyBranchRemoteBranchName   /\v[-_[:alnum:].\/]+/ contained
+ 
+	if a:conceal_local && !empty(a:current)
+		let parts = split(a:current, '/')
+		if len(parts) < 2 
+			execute("syntax match TwiggyBranchCurrent '\\v" . s:branch_marker_vmagic['local'] . a:current . "$' contains=TwiggyBranchCurrentPrefix,TwiggyBranchCurrentName")
+			execute 'syntax match TwiggyBranchCurrentPrefix /\V' . escape(s:branch_marker['local'], '\/') . '/ contained conceal contains=TwiggyBranchPrefix nextgroup=TwiggyBranchCurrentName'
+			execute('syntax match TwiggyBranchCurrentName /\V' .. a:current .. '/ contained')
+		else
+			let prefix = parts[0] .. '/'
+			let name = join(parts[1 :], '/')
+
+			execute('syntax match TwiggyBranchCurrent /\v' .. s:branch_marker_vmagic['local'] .. escape(a:current, '\/\') .. '$/ contains=TwiggyBranchCurrentPrefix,TwiggyBranchCurrentName')
+			execute('syntax match TwiggyBranchCurrentPrefix /\V' .. escape(s:branch_marker['local'] . prefix, '\/') .. '/ contained conceal contains=TwiggyBranchPrefix nextgroup=TwiggyBranchCurrentName')
+			execute('syntax match TwiggyBranchCurrentName /\V' .. escape(name, '\/\') .. '/ contained')
+		endif
+	elseif !a:conceal_local && !empty(a:current)
+		execute('syntax match TwiggyBranchCurrent /\v' .. s:branch_marker_vmagic['local'] .. escape(a:current, '\/\') .. '$/ contains=TwiggyBranchCurrentPrefix,TwiggyBranchCurrentName')
+		execute 'syntax match TwiggyBranchCurrentPrefix /\V' . escape(s:branch_marker['local'], '\/') . '/ contained conceal contains=TwiggyBranchPrefix nextgroup=TwiggyBranchCurrentName'
+		execute('syntax match TwiggyBranchCurrentName /\V' .. escape(a:current, '\/\') .. '/ contained')
+	endif
+
+	function! RenderRemote(conceal_remote, remote, type)
+		if a:conceal_remote && !empty(a:remote)
+			let parts = split(a:remote, '/')
+			if len(parts) < 3 
+				let prefix = parts[0] .. '/'
+				let name = join(parts[1 :], '/')
+			else
+				let prefix = join(parts[0 : 1], '/') .. '/'
+				let name = join(parts[2 :], '/')
+			endif
+
+			execute('syntax match TwiggyBranchCurrent' . a:type . ' /\v' .. s:branch_marker_vmagic['remote'] .. escape(a:remote, '\/\') .. '$/ contains=TwiggyBranchCurrent' . a:type . 'Prefix,TwiggyBranchCurrent' . a:type . 'Name')
+			execute('syntax match TwiggyBranchCurrent' . a:type . 'Prefix /\V' .. escape(s:branch_marker['remote'] . prefix, '\/') .. '/ contained conceal contains=TwiggyBranchPrefix nextgroup=TwiggyBranchCurrent' . a:type . 'Name')
+			execute('syntax match TwiggyBranchCurrent' . a:type . 'Name /\V' .. escape(name, '\/\') .. '/ contained')
+		elseif !a:conceal_remote && !empty(a:remote)
+			let parts = split(a:remote, '/')
+			let prefix = parts[0] .. '/'
+			let name = join(parts[1 :], '/')
+
+			execute('syntax match TwiggyBranchCurrent' . a:type . ' /\v' .. s:branch_marker_vmagic['remote'] .. escape(a:remote, '\/\') .. '$/ contains=TwiggyBranchCurrent' . a:type . 'Prefix,TwiggyBranchCurrent' . a:type . 'Name')
+			execute('syntax match TwiggyBranchCurrent' . a:type . 'Prefix /\V' .. escape(s:branch_marker['remote'] . prefix, '\/') .. '/ contained conceal contains=TwiggyBranchPrefix nextgroup=TwiggyBranchCurrent' . a:type . 'Name')
+			execute('syntax match TwiggyBranchCurrent' . a:type . 'Name /\V' .. escape(name, '\/\') .. '/ contained')
+		endif
+
+	endfunction
+
+	if a:upstream ==# a:push
+		call RenderRemote(a:conceal_remote, a:upstream, "UpstreamPush")
+	else
+		call RenderRemote(a:conceal_remote, a:upstream, "Upstream")
+		call RenderRemote(a:conceal_remote, a:push, "Push")
+	endif
+
+	execute 'syntax match TwiggyBranchPrefix /\v' . s:branch_marker_vmagic['local'] . '/ contained conceal'
+	execute 'syntax match TwiggyBranchPrefix /\v' . s:branch_marker_vmagic['remote'] . '/ contained conceal'
+  endfunction
+
+  let current_branch = s:get_current_branch()
+  let upstream = s:get_current_branch_remote_upstream()
+  let push = s:get_current_branch_remote_push()
+  call RenderBranches(current_branch, upstream, push, g:twiggy_group_locals_by_slash, g:twiggy_group_remotes_by_slash)
+  " ────────────────────────────────────────────────────────────────────────
 
   exec "syntax match TwiggyCurrent '\\V\\%1c" . s:icons.current . "'"
   highlight default link TwiggyCurrent Identifier
@@ -1130,6 +1371,15 @@ function! s:Render() abort
   syntax match TwiggySortText '\v[[a-z]+]'
   highlight default link TwiggySortText Comment
 
+  if s:showing_full_ui()
+    syntax match TwiggyHeader "\v%1l^Twiggy"
+    highlight default link TwiggyHeader Title
+    syntax match TwiggyHelpHint "\v%1lHelp: "
+    highlight default link TwiggyHelpHint fugitiveHelpHeader
+    syntax match TwiggyHelpHintKey "\v%1l\g\?"
+    highlight default link TwiggyHelpHintKey fugitiveHelpTag
+  endif
+
   if exists('s:branches_not_in_reflog') && len(s:branches_not_in_reflog)
     return
     exec "syntax match TwiggyNotInReflog '" .
@@ -1140,13 +1390,6 @@ function! s:Render() abort
 
   exec "syntax match TwiggyDetachedText '\\v%3vHEAD\\@[a-z0-9]+'"
   highlight default link TwiggyDetachedText Identifier
-
-  if s:showing_full_ui()
-    syntax match TwiggyHelpHint "\v%1l"
-    highlight default link TwiggyHelpHint Normal
-    syntax match TwiggyHelpHintKey "\v%1l\?"
-    highlight default link TwiggyHelpHintKey Identifier
-  endif
 
   " }}}
 endfunction
@@ -1172,7 +1415,7 @@ function! s:Quickhelp() abort
   let bufnr = bufnr('')
 
   nnoremap <buffer> <silent> q :quit<CR>
-  nnoremap <buffer> <silent> ? :Twiggy<CR>
+  nnoremap <buffer> <silent> g? :Twiggy<CR>
 
   call append(0, s:quickhelp_view())
   normal! G
@@ -1181,12 +1424,12 @@ function! s:Quickhelp() abort
   setlocal nomodifiable
 
   syntax clear
-  syntax match TwiggyQuickhelpMapping "\v%<7c[A-Za-z\-\?\^\<\>!,.]"
+  syntax match TwiggyQuickhelpMapping "\v%<9c[A-Za-z\-\?\^\<\>!,.]"
   highlight link TwiggyQuickhelpMapping Identifier
   syntax match TwiggyQuickhelpSpecial "\v\`[a-zA-Z]+\`"
   highlight link TwiggyQuickhelpSpecial Identifier
   syntax match TwiggyQuickhelpHeader "\v[A-Za-z ]+\n[=]+"
-  highlight link TwiggyQuickhelpHeader String
+  highlight link TwiggyQuickhelpHeader Title
   syntax match TwiggyQuickhelpSectionHeader "\v[\-]+\n[a-z,\/ \:]+\n[\-]+"
   highlight link TwiggyQuickhelpSectionHeader String
   if g:twiggy_show_full_ui
@@ -1319,11 +1562,12 @@ endfunction
 
 "   {{{2 Git
 "     {{{3 Checkout
-function! s:Checkout(track) abort
+function! s:Checkout(track, merge) abort
   let current_branch = s:get_current_branch()
   let switch_branch = s:branch_under_cursor()
+  let merge_opt = a:merge ? ' --merge ' : ''
 
-  if s:dirty_tree()
+  if s:dirty_tree() && !a:merge
     let dirty_files = s:git_cmd('diff --name-only', 0)
     let warning = 'error: Your local changes to the following files would be overwritten by checkout:'
     let s:last_output = [
@@ -1344,21 +1588,21 @@ function! s:Checkout(track) abort
     return 1
   else
     redraw
-    echo 'Moving from ' . current_branch . ' to ' . switch_branch.fullname . '...'
+    echo 'Moving from ' . current_branch . ' to ' . switch_branch.fullname . s:ellipsis
     if a:track && !switch_branch.is_local " tracking and branch is remote
       if index(map(s:git_cmd('branch --list', 0), 'v:val[2:]'), switch_branch.name) >= 0
         " Checkout remote in detached HEAD
-        call s:git_cmd('checkout ' . switch_branch.fullname, 0)
+        call s:git_cmd('switch ' . merge_opt . switch_branch.fullname, 0)
       else
         " Create a new tracking branch
-        call s:git_cmd('checkout -b ' . switch_branch.name . ' ' . switch_branch.fullname , 0)
+        call s:git_cmd('switch -c ' . merge_opt . switch_branch.name . ' ' . switch_branch.fullname , 0)
       endif
     elseif !a:track && !switch_branch.is_local " not tracking and branch is remote
-      call s:git_cmd('checkout ' . switch_branch.fullname, 0)
+      call s:git_cmd('switch ' . merge_opt . switch_branch.fullname, 0)
     elseif !a:track && switch_branch.is_local " not tracking and branch is local
-      call s:git_cmd('checkout ' . switch_branch.tracking, 0)
+      call s:git_cmd('switch ' . merge_opt . switch_branch.tracking, 0)
     else " tracking and branch is local
-      call s:git_cmd('checkout ' . switch_branch.fullname, 0)
+      call s:git_cmd('switch ' . merge_opt . switch_branch.fullname, 0)
     endif
   endif
 
@@ -1384,9 +1628,9 @@ function! s:CheckoutAs() abort
       echo branch.name . " already exists."
       return 1
     endif
-    call s:git_cmd("checkout -b " . new_name . " " . branch.fullname, 0)
+    call s:git_cmd("switch -c " . new_name . " " . branch.fullname, 0)
     redraw
-    echo 'Moving from ' . branch.name . ' to ' . new_name . '...'
+    echo 'Moving from ' . branch.name . ' to ' . new_name . s:ellipsis
 
     let s:init_line = 0
     let s:last_branch_under_cursor = 0
@@ -1527,7 +1771,7 @@ function! s:Continue(type) abort
   if a:type ==? 'stash'
       call s:ContinueStash()
   else
-    call s:git_cmd(a:type . ' --continue', 1, {"no_dispatch": 1})
+    call s:git_cmd(a:type . ' --continue', 1, {"no_dispatch": 0})
   endif
 
   redraw
@@ -1556,7 +1800,7 @@ endfunction
 
 "     {{{3 Stash Continue
 function! s:ContinueStash() abort
-  call s:git_cmd('commit', 1, {"no_dispatch": 1})
+  call s:git_cmd('commit', 1, {"no_dispatch": 0})
 endfunction
 
 "     {{{3 Stash Abort
@@ -1613,7 +1857,7 @@ function! s:Push(choose_upstream, force) abort
     if !a:force || !g:twiggy_prompted_force_push
       call s:git_cmd(cmd, 1)
     else
-      return s:Confirm("Force push to " . branch.tracking . "?",
+      return s:Confirm("Force push (with lease) to " . branch.tracking . "?",
             \ "s:git_cmd('" . cmd . "', 1)", 0)
     endif
   endif
@@ -1639,7 +1883,7 @@ function! s:Rename() abort
   let new_name = input("Rename " . branch.fullname . " to: ", branch.fullname)
   redraw
   if !empty(new_name)
-	  echo "Renaming \"" . branch.fullname . "\" to \"" . new_name . "\"... "
+	  echo 'Renaming "' . branch.fullname . '" to "' . new_name . '"' . s:ellipsis
 	  call s:git_cmd("branch -m " . branch.fullname . " " . new_name, 0)
 	  call fugitive#ReloadStatus()
   endif
