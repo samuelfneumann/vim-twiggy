@@ -637,7 +637,6 @@ function! s:quickhelp_view() abort
   call add(output, 'JL        jump to curr branch')
   call add(output, 'JU        jump to curr upstream')
   call add(output, 'JP        jump to curr push')
-  call add(output, 'q         quit')
   call add(output, 'g?        toggle this help')
   call add(output, '---------------------------')
   call add(output, 'w/ the cursor on a branch:')
@@ -864,9 +863,6 @@ function! s:RenderOutputBuffer() abort
   highlight link TwiggyOutputText  Comment
   syntax match TwiggyOutputFile "\v^\t(.*)"
   highlight link TwiggyOutputFile Constant
-
-  nnoremap <buffer> q :quit<CR>
-  nnoremap <buffer> Q :quit<CR>:call <SID>Close()<CR>
 endfunction
 
 "   {{{2 Confirm
@@ -1027,7 +1023,6 @@ function! s:Render() abort
     let t:twiggy_bufnr = bufnr('')
   endif
 
-  nnoremap <buffer> <silent> q :<C-U>call <SID>Close()<CR>
   if g:twiggy_enable_quickhelp
     nnoremap <buffer> <silent> g? :<C-U>call <SID>Quickhelp()<CR>
   endif
@@ -1414,7 +1409,6 @@ function! s:Quickhelp() abort
   unlet t:twiggy_cached_git_dir
   let bufnr = bufnr('')
 
-  nnoremap <buffer> <silent> q :quit<CR>
   nnoremap <buffer> <silent> g? :Twiggy<CR>
 
   call append(0, s:quickhelp_view())
