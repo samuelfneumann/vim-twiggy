@@ -115,6 +115,7 @@ let g:twiggy_enable_quickhelp       = get(g:,'twiggy_enable_quickhelp',       1 
 let g:twiggy_show_full_ui           = get(g:,'twiggy_show_full_ui',           g:twiggy_enable_quickhelp                                )
 let g:twiggy_git_log_command        = get(g:,'twiggy_git_log_command',        ''                                                       )
 let g:twiggy_refresh_buffers        = get(g:,'twiggy_refresh_buffers',        1                                                        )
+let g:twiggy_push_set_upstream		= get(g:, 'twiggy_push_set_upstream',	  1						  								   )
 
 "   {{{2 show_full_ui
 function! s:showing_full_ui()
@@ -1193,13 +1194,13 @@ function! s:Render() abort
   call s:mapping('gR',      'Rebase',           [1, 1, 0])
   call s:mapping('gri',     'Rebase',           [0, 1, 1])
   call s:mapping('gRi',     'Rebase',           [1, 1, 1])
-  call s:mapping('^',       'Push',             [0, 0]) " deprecated
-  call s:mapping('g^',      'Push',             [1, 0]) " deprecated 
-  call s:mapping('!^',      'Push',             [0, 1]) " deprecated
+  call s:mapping('^',       'Push',             [0, 0, 1]) " deprecated
+  call s:mapping('g^',      'Push',             [1, 0, 1]) " deprecated 
+  call s:mapping('!^',      'Push',             [0, 1, 1]) " deprecated
   call s:mapping('V',       'Pull',             [])     " deprecated
-  call s:mapping('P',       'Push',             [0, 0])
-  call s:mapping('gP',      'Push',             [1, 0])
-  call s:mapping('!P',      'Push',             [0, 1])
+  call s:mapping('P',       'Push',             [0, 0, g:twiggy_push_set_upstream])
+  call s:mapping('gP',      'Push',             [1, 0, g:twiggy_push_set_upstream])
+  call s:mapping('!P',      'Push',             [0, 1, g:twiggy_push_set_upstream])
   call s:mapping('p',       'Pull',             [])
   call s:mapping(',',       'Rename',           [])
   call s:mapping('<<',      'Stash',            [0])
@@ -1809,7 +1810,7 @@ function! s:AbortStash() abort
 endfunction
 
 "     {{{3 Push
-function! s:Push(choose_upstream, force) abort
+function! s:Push(choose_upstream, force, set_upstream) abort
   let branch = s:branch_under_cursor()
 
   if !branch.is_local
@@ -1824,7 +1825,11 @@ function! s:Push(choose_upstream, force) abort
   let flags = ''
   if a:force
     let flags .= ' --force-with-lease'
-  end
+  endif
+
+  if a:set_upstream
+	  let flags .= ' --set-upstream'
+  endif
 
   if branch.tracking ==# '' && !a:choose_upstream
     if g:twiggy_set_upstream
