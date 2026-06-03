@@ -648,8 +648,8 @@ function! s:quickhelp_view() abort
   call add(output, 'om        checkout --merge')
   call add(output, 'C         checkout remote')
   call add(output, 'O         checkout remote')
-  call add(output, 'Cm        checkout --merge remote')
-  call add(output, 'Om        checkout --merge remote')
+  call add(output, 'Cm        checkout remote --merge')
+  call add(output, 'Om        checkout remote --merge')
   call add(output, 'gc        checkout as: <name>')
   call add(output, 'go        checkout as: <name>')
   call add(output, 'f         fetch remote')
@@ -663,7 +663,7 @@ function! s:quickhelp_view() abort
   call add(output, 'gRi       `R` -i --autostash')
   call add(output, 'P         push')
   call add(output, 'gP        push (prompted)')
-  call add(output, '!P        force push (with lease)')
+  call add(output, '!P        push --force-with-lease')
   call add(output, 'p         pull')
   if g:twiggy_git_log_command !=# ''
     call add(output, 'gl          git log')
@@ -1421,13 +1421,19 @@ function! s:Quickhelp() abort
   syntax match TwiggyQuickhelpMapping "\v%<9c[A-Za-z\-\?\^\<\>!,.]"
   highlight link TwiggyQuickhelpMapping Identifier
   syntax match TwiggyQuickhelpSpecial "\v\`[a-zA-Z]+\`"
-  highlight link TwiggyQuickhelpSpecial Identifier
+  highlight link TwiggyQuickhelpSpecial Special
+
   syntax match TwiggyQuickhelpHeader "\v[A-Za-z ]+\n[=]+"
   highlight link TwiggyQuickhelpHeader Title
-  syntax match TwiggyQuickhelpSectionHeader "\v[\-]+\n[a-z,\/ \:]+\n[\-]+"
+
+  syntax match TwiggyQuickhelpSectionHeader "\v[\-]+\n[[:alnum:],\/ \:]+\n[\-]+"
   highlight link TwiggyQuickhelpSectionHeader String
+
+  syntax match TwiggyQuickhelpGitOption '--[:alnum:][[:alnum:]-]\+$'
+  highlight link TwiggyQuickhelpGitOption vimOption
+
   if g:twiggy_show_full_ui
-    syntax match TwiggyQuickhelpRecommendation "\v^\*+\n[A-Za-z\: ]+\n[a-z\:\- ]+"
+    syntax match TwiggyQuickhelpRecommendation "\v^\*+\n[[:alnum:]\: ]+\n[a-z\:\- ]+"
     highlight link TwiggyQuickhelpRecommendation String
   endif
 endfunction
