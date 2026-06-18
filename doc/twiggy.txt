@@ -376,6 +376,20 @@ dP                If the branch under the cursor is remote, this will prompt
 .                 Start a `:Git` command line auto-populated with the branch
                   under the cursor.
 
+                  Visual mode~
+                                                *twiggy-visual-mode*
+d                 Delete all branches in the visual selection.
+
+f                 Fetch all tracking branches in the visual selection.
+
+y                 Yank the full names of all branches in the visual selection,
+                  separated by newlines.
+
+P                 Push all local branches in the visual selection.
+
+!P                Force push all local branches in the visual selection with
+                  --force-with-lease.
+
                   Git Log~
 
                   Twiggy is all about branching, not commit history.

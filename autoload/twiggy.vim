@@ -46,6 +46,12 @@ function! s:mapping(mapping, fn, args) abort
         \ s:encode_mapping(a:mapping) . "')<CR>"
 endfunction
 
+function! s:visual_mapping(mapping, fn, args) abort
+  exe "xnoremap <buffer> <silent> " .
+        \ a:mapping . " :<C-U>call <SID>visual_call('" .
+        \ a:fn . "', " . string(a:args) . ", line(\"'<\"), line(\"'>\"))<CR>"
+endfunction
+
 "   {{{2 encode_mapping
 function! s:encode_mapping(mapping) abort
   return s:sub(a:mapping, '\v^\<', '___',)
@@ -188,7 +194,6 @@ function! s:call(mapping) abort
         \ '^': 'P',
         \ 'g^': 'gP',
         \ '!^': '!P',
-        \ 'V': 'p',
         \ 'd^': 'dP'
         \ }
   let encoded_mapping = s:encode_mapping(a:mapping)
@@ -207,6 +212,37 @@ function! s:call(mapping) abort
       wincmd p
       Git
     endif
+    call s:RenderOutputBuffer()
+  endif
+endfunction
+
+function! s:visual_call(fn, args, lnum1, lnum2) abort
+  let branches = s:branches_in_range(a:lnum1, a:lnum2)
+  if empty(branches)
+    return
+  endif
+
+  if a:fn ==# 'YankBranches'
+    call s:YankBranches(a:lnum1, a:lnum2)
+    return
+  endif
+
+  let original_line = line('.')
+  let failed = 0
+  for branch in branches
+    call cursor(branch.line, 1)
+    if call('s:' . a:fn, a:args)
+      let failed = 1
+    endif
+  endfor
+  call cursor(original_line, 1)
+
+  if failed
+    call s:ErrorMsg()
+  else
+    call s:Render()
+    call s:refresh_buffers()
+    call <SID>buffocus(t:twiggy_bufnr)
     call s:RenderOutputBuffer()
   endif
 endfunction
@@ -494,6 +530,16 @@ function! s:branch_under_cursor() abort
   return ''
 endfunction
 
+function! s:branches_in_range(lnum1, lnum2) abort
+  let branches = []
+  for line in range(a:lnum1, a:lnum2)
+    if has_key(s:branch_line_refs, line)
+      call add(branches, s:branch_line_refs[line])
+    endif
+  endfor
+  return branches
+endfunction
+
 " Note: this may change
 function! TwiggyBranchUnderCursor() abort
   if &ft !=# 'twiggy'
@@ -676,6 +722,14 @@ function! s:quickhelp_view() abort
   if g:twiggy_enable_remote_delete
     call add(output, 'dP          delete from server')
   endif
+  call add(output, '----------------------------')
+  call add(output, 'w/ visually selected branches:')
+  call add(output, '----------------------------')
+  call add(output, 'd         delete selected')
+  call add(output, 'f         fetch selected')
+  call add(output, 'y         yank selected')
+  call add(output, 'P         push selected')
+  call add(output, '!P        push selected --force-with-lease')
   call add(output, '.         :Git <cursor> <branch>')
   call add(output, '<<        stash')
   call add(output, '>>        pop stash')
@@ -1197,11 +1251,15 @@ function! s:Render() abort
   call s:mapping('^',       'Push',             [0, 0, 1]) " deprecated
   call s:mapping('g^',      'Push',             [1, 0, 1]) " deprecated 
   call s:mapping('!^',      'Push',             [0, 1, 1]) " deprecated
-  call s:mapping('V',       'Pull',             [])     " deprecated
   call s:mapping('P',       'Push',             [0, 0, g:twiggy_push_set_upstream])
   call s:mapping('gP',      'Push',             [1, 0, g:twiggy_push_set_upstream])
   call s:mapping('!P',      'Push',             [0, 1, g:twiggy_push_set_upstream])
   call s:mapping('p',       'Pull',             [])
+  call s:visual_mapping('d',       'Delete',           [])
+  call s:visual_mapping('f',       'Fetch',            [0])
+  call s:visual_mapping('y',       'YankBranches',     [])
+  call s:visual_mapping('P',       'Push',             [0, 0, g:twiggy_push_set_upstream])
+  call s:visual_mapping('!P',      'Push',             [0, 1, g:twiggy_push_set_upstream])
   call s:mapping(',',       'Rename',           [])
   call s:mapping('<<',      'Stash',            [0])
   call s:mapping('>>',      'Stash',            [1])
@@ -1652,6 +1710,12 @@ function! s:Yank() abort
   let branch = s:branch_under_cursor()
   let reg = empty(v:register) ? '"' : v:register
   call setreg(reg, branch.fullname)
+endfunction
+
+function! s:YankBranches(lnum1, lnum2) abort
+  let branches = s:branches_in_range(a:lnum1, a:lnum2)
+  let reg = empty(v:register) ? '"' : v:register
+  call setreg(reg, join(map(copy(branches), 'v:val.fullname'), "\n"))
 endfunction
 
 
