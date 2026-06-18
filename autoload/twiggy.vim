@@ -1184,7 +1184,7 @@ function! s:Render() abort
 	" autocmd User FugitiveChanged let t:branches_changed = 1
 	" autocmd CmdlineLeave * if exists("t:branches_changed") && t:branches_changed | let t:branches_changed = 0 | call <SID>Refresh() | endif
 	
-    autocmd CmdlineLeave * if histget(":", -1) =~ '\v^G(it)?\s+(fetch|pull|push|switch|checkout|branch)' | call <SID>Refresh() | let t:branches_changed = 1 | endif
+    autocmd CmdlineLeave * if histget(":", -1) =~ '\v^G(it)?\s+(fetch|pull|push|switch|checkout|branch|rebase|merge)' | call <SID>Refresh() | let t:branches_changed = 1 | endif
 	autocmd User FugitiveChanged if exists("t:branches_changed") && t:branches_changed | let t:branches_changed = 0 | call <SID>Refresh() | endif
 
 	autocmd User WorktreeCheckout call <SID>Refresh() 
