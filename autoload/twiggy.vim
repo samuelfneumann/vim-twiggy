@@ -719,6 +719,7 @@ function! s:quickhelp_view() abort
   call add(output, ',         rename')
   call add(output, 'yy        yank <branch>')
   call add(output, 'dd        delete')
+  call add(output, '!dd       force delete')
   if g:twiggy_enable_remote_delete
     call add(output, 'dP          delete from server')
   endif
@@ -726,6 +727,7 @@ function! s:quickhelp_view() abort
   call add(output, 'w/ visually selected branches:')
   call add(output, '----------------------------')
   call add(output, 'd         delete selected')
+  call add(output, '!d        force delete selected')
   call add(output, 'f         fetch selected')
   call add(output, 'y         yank selected')
   call add(output, 'P         push selected')
@@ -1255,7 +1257,9 @@ function! s:Render() abort
   call s:mapping('gP',      'Push',             [1, 0, g:twiggy_push_set_upstream])
   call s:mapping('!P',      'Push',             [0, 1, g:twiggy_push_set_upstream])
   call s:mapping('p',       'Pull',             [])
+  call s:mapping('!dd',      'ForceDelete',      [])
   call s:visual_mapping('d',       'Delete',           [])
+  call s:visual_mapping('!d',      'ForceDelete',      [])
   call s:visual_mapping('f',       'Fetch',            [0])
   call s:visual_mapping('y',       'YankBranches',     [])
   call s:visual_mapping('P',       'Push',             [0, 0, g:twiggy_push_set_upstream])
@@ -1743,6 +1747,23 @@ function! s:Delete() abort
           \ 'Delete remote branch ' . branch.fullname . '?',
           \ "s:git_cmd('branch -d -r " . branch.fullname . "', 0)[0]", 0)
   endif
+endfunction
+
+function! s:ForceDelete() abort
+  let branch = s:branch_under_cursor()
+
+  if branch.fullname ==# s:get_current_branch()
+    return
+  endif
+
+  let s:init_line = branch.line
+  if branch.is_local
+    call s:git_cmd('branch -D ' . branch.fullname, 0)
+  else
+    call s:git_cmd('branch -D -r ' . branch.fullname, 0)
+  endif
+
+  return v:shell_error
 endfunction
 
 function! s:DeleteRemote() abort
