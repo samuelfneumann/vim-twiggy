@@ -717,17 +717,17 @@ function! s:quickhelp_view() abort
     call add(output, 'gL          git log `..`')
   endif
   call add(output, ',         rename')
-  call add(output, 'yy        yank <branch>')
-  call add(output, 'dd        delete')
-  call add(output, '!dd       force delete')
+  call add(output, 'yy        yank')
+  call add(output, 'dd        delete (prompt)')
+  call add(output, '!dd       delete --force')
   if g:twiggy_enable_remote_delete
     call add(output, 'dP          delete from server')
   endif
   call add(output, '----------------------------')
   call add(output, 'w/ visually selected branches:')
   call add(output, '----------------------------')
-  call add(output, 'd         delete selected')
-  call add(output, '!d        force delete selected')
+  call add(output, 'd         delete selected (prompt)')
+  call add(output, '!d        delete selected --force')
   call add(output, 'f         fetch selected')
   call add(output, 'y         yank selected')
   call add(output, 'P         push selected')
@@ -1233,7 +1233,7 @@ function! s:Render() abort
   call s:mapping('Om',      'Checkout',         [0, 1])
   call s:mapping('gc',      'CheckoutAs',       [])
   call s:mapping('go',      'CheckoutAs',       [])
-  call s:mapping('dd',      'Delete',           [])
+  call s:mapping('dd',      'Delete',           [1])
   call s:mapping('yy',      'Yank',	            [])
   call s:mapping('F',       'Fetch',            [0]) " deprecated
   call s:mapping('f',       'Fetch',            [0])
@@ -1258,7 +1258,7 @@ function! s:Render() abort
   call s:mapping('!P',      'Push',             [0, 1, g:twiggy_push_set_upstream])
   call s:mapping('p',       'Pull',             [])
   call s:mapping('!dd',      'ForceDelete',      [])
-  call s:visual_mapping('d',       'Delete',           [])
+  call s:visual_mapping('d',       'Delete',           [1])
   call s:visual_mapping('!d',      'ForceDelete',      [])
   call s:visual_mapping('f',       'Fetch',            [0])
   call s:visual_mapping('y',       'YankBranches',     [])
@@ -1724,7 +1724,7 @@ endfunction
 
 
 "     {{{3 Delete
-function! s:Delete() abort
+function! s:Delete(confirm) abort
   let branch = s:branch_under_cursor()
 
   if branch.fullname ==# s:get_current_branch()
@@ -1735,17 +1735,22 @@ function! s:Delete() abort
 
   if branch.is_local
     call s:git_cmd('branch -d ' . branch.fullname, 0)
-    if v:shell_error
+    if a:confirm && v:shell_error
       " blow out last output to suppress error buffer
       let s:last_output = []
       return s:Confirm(
-            \ 'UNMERGED!  Force-delete local branch ' . branch.fullname . '?',
+            \ 'Unmerged!  Force-delete local branch ' . branch.fullname . '?',
             \ "s:git_cmd('branch -D " . branch.fullname . "', 0)[0]", 0)
     endif
   else
-    return s:Confirm(
-          \ 'Delete remote branch ' . branch.fullname . '?',
-          \ "s:git_cmd('branch -d -r " . branch.fullname . "', 0)[0]", 0)
+	  call s:git_cmd('branch -d -r " . branch.fullname . "', 0)
+      if a:confirm && v:shell_error
+        " blow out last output to suppress error buffer
+        let s:last_output = []
+        return s:Confirm(
+			  \ 'Force-delete remote branch ' . branch.fullname . '?',
+			  \ "s:git_cmd('branch -d -r " . branch.fullname . "', 0)[0]", 0)
+      endif
   endif
 endfunction
 
