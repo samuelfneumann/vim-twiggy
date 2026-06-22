@@ -46,6 +46,12 @@ function! s:mapping(mapping, fn, args) abort
         \ s:encode_mapping(a:mapping) . "')<CR>"
 endfunction
 
+function! s:visual_mapping(mapping, fn, args) abort
+  exe "xnoremap <buffer> <silent> " .
+        \ a:mapping . " :<C-U>call <SID>visual_call('" .
+        \ a:fn . "', " . string(a:args) . ", line(\"'<\"), line(\"'>\"))<CR>"
+endfunction
+
 "   {{{2 encode_mapping
 function! s:encode_mapping(mapping) abort
   return s:sub(a:mapping, '\v^\<', '___',)
@@ -188,7 +194,6 @@ function! s:call(mapping) abort
         \ '^': 'P',
         \ 'g^': 'gP',
         \ '!^': '!P',
-        \ 'V': 'p',
         \ 'd^': 'dP'
         \ }
   let encoded_mapping = s:encode_mapping(a:mapping)
@@ -207,6 +212,37 @@ function! s:call(mapping) abort
       wincmd p
       Git
     endif
+    call s:RenderOutputBuffer()
+  endif
+endfunction
+
+function! s:visual_call(fn, args, lnum1, lnum2) abort
+  let branches = s:branches_in_range(a:lnum1, a:lnum2)
+  if empty(branches)
+    return
+  endif
+
+  if a:fn ==# 'YankBranches'
+    call s:YankBranches(a:lnum1, a:lnum2)
+    return
+  endif
+
+  let original_line = line('.')
+  let failed = 0
+  for branch in branches
+    call cursor(branch.line, 1)
+    if call('s:' . a:fn, a:args)
+      let failed = 1
+    endif
+  endfor
+  call cursor(original_line, 1)
+
+  if failed
+    call s:ErrorMsg()
+  else
+    call s:Render()
+    call s:refresh_buffers()
+    call <SID>buffocus(t:twiggy_bufnr)
     call s:RenderOutputBuffer()
   endif
 endfunction
@@ -494,6 +530,16 @@ function! s:branch_under_cursor() abort
   return ''
 endfunction
 
+function! s:branches_in_range(lnum1, lnum2) abort
+  let branches = []
+  for line in range(a:lnum1, a:lnum2)
+    if has_key(s:branch_line_refs, line)
+      call add(branches, s:branch_line_refs[line])
+    endif
+  endfor
+  return branches
+endfunction
+
 " Note: this may change
 function! TwiggyBranchUnderCursor() abort
   if &ft !=# 'twiggy'
@@ -671,11 +717,21 @@ function! s:quickhelp_view() abort
     call add(output, 'gL          git log `..`')
   endif
   call add(output, ',         rename')
-  call add(output, 'yy        yank <branch>')
-  call add(output, 'dd        delete')
+  call add(output, 'yy        yank')
+  call add(output, 'dd        delete (prompt)')
+  call add(output, '!dd       delete --force')
   if g:twiggy_enable_remote_delete
     call add(output, 'dP          delete from server')
   endif
+  call add(output, '----------------------------')
+  call add(output, 'w/ visually selected branches:')
+  call add(output, '----------------------------')
+  call add(output, 'd         delete selected (prompt)')
+  call add(output, '!d        delete selected --force')
+  call add(output, 'f         fetch selected')
+  call add(output, 'y         yank selected')
+  call add(output, 'P         push selected')
+  call add(output, '!P        push selected --force-with-lease')
   call add(output, '.         :Git <cursor> <branch>')
   call add(output, '<<        stash')
   call add(output, '>>        pop stash')
@@ -1130,7 +1186,7 @@ function! s:Render() abort
 	" autocmd User FugitiveChanged let t:branches_changed = 1
 	" autocmd CmdlineLeave * if exists("t:branches_changed") && t:branches_changed | let t:branches_changed = 0 | call <SID>Refresh() | endif
 	
-    autocmd CmdlineLeave * if histget(":", -1) =~ '\v^G(it)?\s+(fetch|pull|push|switch|checkout|branch)' | call <SID>Refresh() | let t:branches_changed = 1 | endif
+    autocmd CmdlineLeave * if histget(":", -1) =~ '\v^G(it)?\s+(fetch|pull|push|switch|checkout|branch|rebase|merge)' | call <SID>Refresh() | let t:branches_changed = 1 | endif
 	autocmd User FugitiveChanged if exists("t:branches_changed") && t:branches_changed | let t:branches_changed = 0 | call <SID>Refresh() | endif
 
 	autocmd User WorktreeCheckout call <SID>Refresh() 
@@ -1177,7 +1233,7 @@ function! s:Render() abort
   call s:mapping('Om',      'Checkout',         [0, 1])
   call s:mapping('gc',      'CheckoutAs',       [])
   call s:mapping('go',      'CheckoutAs',       [])
-  call s:mapping('dd',      'Delete',           [])
+  call s:mapping('dd',      'Delete',           [1])
   call s:mapping('yy',      'Yank',	            [])
   call s:mapping('F',       'Fetch',            [0]) " deprecated
   call s:mapping('f',       'Fetch',            [0])
@@ -1197,11 +1253,17 @@ function! s:Render() abort
   call s:mapping('^',       'Push',             [0, 0, 1]) " deprecated
   call s:mapping('g^',      'Push',             [1, 0, 1]) " deprecated 
   call s:mapping('!^',      'Push',             [0, 1, 1]) " deprecated
-  call s:mapping('V',       'Pull',             [])     " deprecated
   call s:mapping('P',       'Push',             [0, 0, g:twiggy_push_set_upstream])
   call s:mapping('gP',      'Push',             [1, 0, g:twiggy_push_set_upstream])
   call s:mapping('!P',      'Push',             [0, 1, g:twiggy_push_set_upstream])
   call s:mapping('p',       'Pull',             [])
+  call s:mapping('!dd',      'ForceDelete',      [])
+  call s:visual_mapping('d',       'Delete',           [1])
+  call s:visual_mapping('!d',      'ForceDelete',      [])
+  call s:visual_mapping('f',       'Fetch',            [0])
+  call s:visual_mapping('y',       'YankBranches',     [])
+  call s:visual_mapping('P',       'Push',             [0, 0, g:twiggy_push_set_upstream])
+  call s:visual_mapping('!P',      'Push',             [0, 1, g:twiggy_push_set_upstream])
   call s:mapping(',',       'Rename',           [])
   call s:mapping('<<',      'Stash',            [0])
   call s:mapping('>>',      'Stash',            [1])
@@ -1654,9 +1716,15 @@ function! s:Yank() abort
   call setreg(reg, branch.fullname)
 endfunction
 
+function! s:YankBranches(lnum1, lnum2) abort
+  let branches = s:branches_in_range(a:lnum1, a:lnum2)
+  let reg = empty(v:register) ? '"' : v:register
+  call setreg(reg, join(map(copy(branches), 'v:val.fullname'), "\n"))
+endfunction
+
 
 "     {{{3 Delete
-function! s:Delete() abort
+function! s:Delete(confirm) abort
   let branch = s:branch_under_cursor()
 
   if branch.fullname ==# s:get_current_branch()
@@ -1667,18 +1735,40 @@ function! s:Delete() abort
 
   if branch.is_local
     call s:git_cmd('branch -d ' . branch.fullname, 0)
-    if v:shell_error
+    if a:confirm && v:shell_error
       " blow out last output to suppress error buffer
       let s:last_output = []
       return s:Confirm(
-            \ 'UNMERGED!  Force-delete local branch ' . branch.fullname . '?',
+            \ 'Unmerged!  Force-delete local branch ' . branch.fullname . '?',
             \ "s:git_cmd('branch -D " . branch.fullname . "', 0)[0]", 0)
     endif
   else
-    return s:Confirm(
-          \ 'Delete remote branch ' . branch.fullname . '?',
-          \ "s:git_cmd('branch -d -r " . branch.fullname . "', 0)[0]", 0)
+	  call s:git_cmd('branch -d -r " . branch.fullname . "', 0)
+      if a:confirm && v:shell_error
+        " blow out last output to suppress error buffer
+        let s:last_output = []
+        return s:Confirm(
+			  \ 'Force-delete remote branch ' . branch.fullname . '?',
+			  \ "s:git_cmd('branch -d -r " . branch.fullname . "', 0)[0]", 0)
+      endif
   endif
+endfunction
+
+function! s:ForceDelete() abort
+  let branch = s:branch_under_cursor()
+
+  if branch.fullname ==# s:get_current_branch()
+    return
+  endif
+
+  let s:init_line = branch.line
+  if branch.is_local
+    call s:git_cmd('branch -D ' . branch.fullname, 0)
+  else
+    call s:git_cmd('branch -D -r ' . branch.fullname, 0)
+  endif
+
+  return v:shell_error
 endfunction
 
 function! s:DeleteRemote() abort

@@ -365,6 +365,9 @@ dd                Delete the branch under the cursor.  If the branch isn't
                   fully merged, the prompt will warn you of this.  Press <CR>
                   or y to accept, press <Esc> or n to cancel.
 
+                                                *twiggy-!dd*
+!dd               Force delete the branch under the cursor.
+
                                                 *twiggy-dP*
 dP                If the branch under the cursor is remote, this will prompt
                   you to delete the branch off of the remote repo.  Since this
@@ -375,6 +378,22 @@ dP                If the branch under the cursor is remote, this will prompt
 <
 .                 Start a `:Git` command line auto-populated with the branch
                   under the cursor.
+
+                  Visual mode~
+                                                *twiggy-visual-mode*
+d                 Delete all branches in the visual selection.
+
+!d                Force delete all branches in the visual selection.
+
+f                 Fetch all tracking branches in the visual selection.
+
+y                 Yank the full names of all branches in the visual selection,
+                  separated by newlines.
+
+P                 Push all local branches in the visual selection.
+
+!P                Force push all local branches in the visual selection with
+                  --force-with-lease.
 
                   Git Log~
 
