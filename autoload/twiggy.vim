@@ -62,6 +62,8 @@ let s:requires_buf_refresh     = 1
 let s:sorted      = 0
 let s:git_cmd_run = 0
 
+let s:worktree_branches = {}
+
 let s:branch_marker = {
       \ 'local': '(l)',
       \ 'remote': '(r)'
@@ -74,12 +76,12 @@ let s:branch_marker_vmagic = {
 " {{{1 Icons
 if exists('g:twiggy_icons')
       \ && type(g:twiggy_icons) == 3
-      \ && len(filter(g:twiggy_icons, 'type(v:val) ==# 1 && strchars(v:val) ==# 1')) ==# 7
+      \ && len(filter(g:twiggy_icons, 'type(v:val) ==# 1 && strchars(v:val) ==# 1')) ==# 8
   let s:icon_set = g:twiggy_icons
 elseif has('multi_byte')
-  let s:icon_set = ['*', '✓', '↑', '↓', '↕', '∅', '✗']
+  let s:icon_set = ['*', '✓', '↑', '↓', '↕', '∅', '✗', '+']
 else
-  let s:icon_set = ['*', '=', '+', '-', '~', '%', 'x']
+  let s:icon_set = ['*', '=', '+', '-', '~', '%', 'x', '+']
 endif
 
 let s:ellipsis = has('multi_byte') ? '…' : '...'
@@ -91,6 +93,7 @@ let s:icons.behind   = s:icon_set[3]
 let s:icons.both     = s:icon_set[4]
 let s:icons.detached = s:icon_set[5]
 let s:icons.unmerged = s:icon_set[6]
+let s:icons.worktree = s:icon_set[7]
 
 
 " {{{1 Options
@@ -225,6 +228,8 @@ function! s:parse_branch(branch, type) abort
   if branch.current
     let git_mode = exists('t:twiggy_git_mode') ? t:twiggy_git_mode : s:get_git_mode()
     let branch.decoration = git_mode !=# 'normal' ? s:icons.unmerged : s:icons.current
+  elseif has_key(s:worktree_branches, pieces[1])
+    let branch.decoration = s:icons.worktree
   endif
 
   let remote_details = pieces[3] . ' ' . pieces[4]
@@ -353,8 +358,23 @@ function! s:get_git_mode() abort
   endif
 endfunction
 
+"   {{{2 update_worktree_branches
+function! s:update_worktree_branches() abort
+  let s:worktree_branches = {}
+  let worktree_count = 0
+  for line in s:git_cmd('worktree list --porcelain', 0)
+    if line =~# '^worktree '
+      let worktree_count += 1
+    elseif line =~# '^branch ' && worktree_count > 1
+      let branchname = substitute(matchstr(line, '^branch \zs.*'), '^refs/heads/', '', '')
+      let s:worktree_branches[branchname] = 1
+    endif
+  endfor
+endfunction
+
 "   {{{2 get_branches
 function! twiggy#get_branches() abort
+  call s:update_worktree_branches()
   let locals = s:_git_branch_vv('heads')
   let locals_sorted = []
 
@@ -784,6 +804,8 @@ function! s:show_branch_details() abort
 			  echohl TwiggyDetached
 		  elseif icon ==# s:icons.unmerged
 			  echohl TwiggyUnmerged
+		  elseif icon ==# s:icons.worktree
+			  echohl TwiggyWorktree
 		  else
 			  echohl ErrorMsg
 		  endif
@@ -1363,6 +1385,9 @@ function! s:Render() abort
 
   exec "syntax match TwiggyUnmerged '\\V\\%1c" . s:icons.unmerged . "'"
   highlight default link TwiggyUnmerged Identifier
+
+  exec "syntax match TwiggyWorktree '\\V\\%1c" . s:icons.worktree . "'"
+  highlight default link TwiggyWorktree Special
 
   syntax match TwiggySortText '\v[[a-z]+]'
   highlight default link TwiggySortText Comment
