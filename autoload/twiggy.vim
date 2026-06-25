@@ -1630,6 +1630,11 @@ function! s:Checkout(track, merge) abort
     else " tracking and branch is local
       call s:git_cmd('switch ' . merge_opt . switch_branch.fullname, 0)
     endif
+
+    if v:shell_error
+      call s:RenderOutputBuffer()
+      return 1
+    endif
   endif
 
   let s:init_line = 0
