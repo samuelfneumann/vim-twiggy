@@ -8,6 +8,25 @@ if exists('g:loaded_twiggy') || &cp
 endif
 let g:loaded_twiggy = 1
 
+function! TwiggyComplete(A,L,P) abort
+  let parts = split(a:L)
+  let subcommands = ['switch', 'close']
+
+  if len(parts) <= 2 && (len(parts) < 2 || index(subcommands, parts[1]) < 0)
+    let completions = ''
+    for cmd in subcommands
+      if match(cmd, '^' . a:A) >= 0
+        let completions = completions . cmd . "\n"
+      endif
+    endfor
+    return completions
+  elseif len(parts) > 1 && parts[1] ==# 'switch'
+    return TwiggyCompleteBranches(a:A, a:L, a:P)
+  endif
+
+  return ''
+endfunction
+
 function! TwiggyCompleteBranches(A,L,P) abort
   let branches = ''
   for branch in twiggy#get_branches()
@@ -18,4 +37,6 @@ function! TwiggyCompleteBranches(A,L,P) abort
   return branches
 endfunction
 
-command -nargs=* -complete=custom,TwiggyCompleteBranches Twiggy call twiggy#Branch(<f-args>)
+command -nargs=* -complete=custom,TwiggyComplete Twiggy call twiggy#Main(<f-args>)
+command -nargs=* -complete=custom,TwiggyComplete T call twiggy#Main(<f-args>)
+command CloseTwiggyOutput call twiggy#CloseOutputBuffer()

@@ -889,6 +889,14 @@ function! s:RenderOutputBuffer() abort
   highlight link TwiggyOutputFile File
 endfunction
 
+function! twiggy#CloseOutputBuffer() abort
+	for info in getbufinfo()
+	  if getbufvar(info.bufnr, '&filetype') ==# 'twiggyoutput'
+		execute 'bwipeout' info.bufnr
+	  endif
+	endfor
+endfunction
+
 "   {{{2 Confirm
 function! s:Confirm(prompt, cmd, abort) abort
   redraw
@@ -1508,12 +1516,31 @@ function! s:Refresh() abort
   unlet t:refreshing
 endfunction
 
+"     {{{3 Main
+function! twiggy#Main(...) abort
+  if len(a:000) == 0
+    call twiggy#Branch()
+  elseif a:000[0] ==# 'switch'
+    if len(a:000) < 2
+      echo "Usage: :Twiggy switch BRANCH"
+      return
+    endif
+    call call('twiggy#Branch', a:000[1:])
+  elseif a:000[0] ==# 'close'
+    call twiggy#CloseOutputBuffer()
+  else
+	echohl ErrorMsg
+    echo "Unknown Twiggy subcommand: " . a:000[0]
+	echohl clear
+  endif
+endfunction
+
 "     {{{3 Branch
 function! twiggy#Branch(...) abort
   if len(a:000)
     let current_branch = s:get_current_branch()
-    let f = s:branch_exists(a:1) ? '' : '-b '
-    call s:git_cmd('checkout ' . f . join(a:000), 0)
+    let f = s:branch_exists(a:1) ? '' : '-c '
+    call s:git_cmd('switch ' . f . join(a:000), 0)
     call s:RenderOutputBuffer()
     if exists('t:twiggy_bufnr')
       call s:Refresh()
@@ -1719,7 +1746,7 @@ function! s:DeleteRemote() abort
 
   return s:Confirm(
         \ 'WARNING! Delete branch ' . branch.name . ' from remote repo: ' . branch.group . '?',
-        \ "s:git_cmd('push " . branch.group . " :" . branch.name . "', 1)[0]", 0)
+        \ "s:git_cmd('push --delete " . branch.group . " :" . branch.name . "', 1)[0]", 0)
 endfunction
 
 "     {{{3 Fetch
