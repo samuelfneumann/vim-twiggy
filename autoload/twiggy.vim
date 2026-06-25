@@ -885,7 +885,7 @@ function! s:RenderOutputBuffer() abort
   syntax match TwiggyOutputText "\v^[^ ](.*)"
   highlight link TwiggyOutputText  Comment
   syntax match TwiggyOutputFile "\v^\t(.*)"
-  highlight link TwiggyOutputFile Constant
+  highlight link TwiggyOutputFile File
 endfunction
 
 "   {{{2 Confirm
