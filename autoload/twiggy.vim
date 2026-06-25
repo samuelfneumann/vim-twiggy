@@ -865,6 +865,7 @@ function! s:RenderOutputBuffer() abort
     return
   endif
   silent keepalt botright new TwiggyOutput
+  setlocal filetype=twiggyoutput
   let output = s:last_output
   let height = len(output)
   if height < 5 | let height = 5 | endif
