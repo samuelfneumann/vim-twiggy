@@ -1588,17 +1588,10 @@ endfunction
 
 "   {{{2 Git
 "     {{{3 Checkout
-function! s:Checkout(track, merge) abort
-  let current_branch = s:get_current_branch()
-  let switch_branch = s:branch_under_cursor()
-  let merge_opt = a:merge ? ' --merge ' : ''
-
-  if s:dirty_tree() && !a:merge
+function! s:ShowDirtyTreeOnCheckoutMessage()
     let dirty_files = s:git_cmd('diff --name-only', 0)
     let warning = 'error: Your local changes to the following files would be overwritten by checkout:'
-    let s:last_output = [
-          \ warning
-          \ ]
+    let s:last_output = [warning]
     call extend(s:last_output, map(dirty_files, '"\t" . v:val'))
     call extend(s:last_output, [
           \ 'Please commit your changes or stash them before you switch branches.',
@@ -1606,6 +1599,15 @@ function! s:Checkout(track, merge) abort
           \ ])
     let v:warningmsg = warning
     call s:RenderOutputBuffer()
+endfunction
+
+function! s:Checkout(track, merge) abort
+  let current_branch = s:get_current_branch()
+  let switch_branch = s:branch_under_cursor()
+  let merge_opt = a:merge ? ' --merge ' : ''
+
+  if s:dirty_tree() && !a:merge
+	call s:ShowDirtyTreeOnCheckoutMessage()
     return 1
   endif
 
