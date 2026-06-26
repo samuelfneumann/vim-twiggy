@@ -79,7 +79,7 @@ if exists('g:twiggy_icons')
       \ && len(filter(g:twiggy_icons, 'type(v:val) ==# 1 && strchars(v:val) ==# 1')) ==# 8
   let s:icon_set = g:twiggy_icons
 elseif has('multi_byte')
-  let s:icon_set = ['*', '✓', '↑', '↓', '↕', '∅', '✗', '+']
+  let s:icon_set = ['*', '✓', '↑', '↓', '↕', '∅', '✗', '⊞']
 else
   let s:icon_set = ['*', '=', '+', '-', '~', '%', 'x', '+']
 endif
