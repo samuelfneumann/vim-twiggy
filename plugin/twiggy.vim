@@ -1,6 +1,6 @@
 " twiggy.vim -- Maintain your bearings while branching with git
-" Maintainer: Andrew Haust <andrewwhhaust@gmail.com>
-" Website:    https://www.github.com/sodapopcan/vim-twiggy
+" Maintainer: Samuel Neumann <samuelfneumann@gmail.com>
+" Website:    https://samuelfneumann.github.io/
 " License:    Same terms as Vim itself (see :help license)
 
 if exists('g:loaded_twiggy') || &cp
