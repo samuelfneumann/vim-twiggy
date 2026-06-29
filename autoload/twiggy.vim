@@ -1378,17 +1378,17 @@ function! s:Render() abort
   exec "syntax match TwiggyCurrent '\\V\\%1c" . s:icons.current . "'"
   highlight default link TwiggyCurrent Identifier
 
-  exec "syntax match TwiggyTracking '\\V\\%2c" . s:icons.tracking . "'"
+  exec "syntax match TwiggyTracking '\\V\\%2v" . s:icons.tracking . "'"
   highlight default link TwiggyTracking String
 
-  exec "syntax match TwiggyAhead '\\V\\%2c" . s:icons.ahead . "'"
+  exec "syntax match TwiggyAhead '\\V\\%2v" . s:icons.ahead . "'"
   highlight default link TwiggyAhead Type
 
-  exec "syntax match TwiggyAheadBehind '\\V\\%2c" . s:icons.behind . "'"
-  exec "syntax match TwiggyAheadBehind '\\V\\%2c" . s:icons.both . "'"
+  exec "syntax match TwiggyAheadBehind '\\V\\%2v" . s:icons.behind . "'"
+  exec "syntax match TwiggyAheadBehind '\\V\\%2v" . s:icons.both . "'"
   highlight default link TwiggyAheadBehind Type
 
-  exec "syntax match TwiggyDetached '\\V\\%2c" . s:icons.detached . "'"
+  exec "syntax match TwiggyDetached '\\V\\%2v" . s:icons.detached . "'"
   highlight default link TwiggyDetached ErrorMsg
 
   exec "syntax match TwiggyUnmerged '\\V\\%1c" . s:icons.unmerged . "'"
