@@ -68,6 +68,12 @@ def Mapping(mapping: any, fn: any, args: any)
       .. ' <ScriptCmd>CallMapping(''' .. EncodeMapping(mapping) .. ''')<CR>'
 enddef
 
+def GetVim9Indicator(force: bool=false): string
+	const indicator = "(vim9)"
+	if force | return indicator | endif
+	return get(g:, 'twiggy_show_vim9_indicator', true) ? indicator : ''
+enddef
+
 # -----------------------------------------------------------------------------
 # Icons
 # -----------------------------------------------------------------------------
@@ -1121,7 +1127,8 @@ def Render()
   var output = []
 
   if ShowingFullUi() && !AttnMode()
-    extend(output, ["Twiggy\tHelp: g?"])
+	const suffix = GetVim9Indicator()
+	extend(output, [$"Twiggy\tHelp: g?{empty(suffix) ? '' : "\t"}{suffix}"])
   endif
 
   if AttnMode()
@@ -1342,6 +1349,10 @@ def Render()
     highlight default link TwiggyHelpHint fugitiveHelpHeader
     syntax match TwiggyHelpHintKey "\v%1l\g\?"
     highlight default link TwiggyHelpHintKey fugitiveHelpTag
+
+	const indicator = GetVim9Indicator(true)
+    execute($'syntax match Twiggy9Indicator "{indicator}"')
+    highlight default link Twiggy9Indicator Comment
   endif
 
   execute "syntax match TwiggyDetachedText '\\v%3vHEAD\\@[a-z0-9]+'"
