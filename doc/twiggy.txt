@@ -148,7 +148,7 @@ The height of Twiggy's buffer.  Only applies for horizontal splits.
                                                 *'adapt_columns'*
 Default: 0
 Ensures all branch names are visible in twiggy's buffer (overrides
-|'adapt_columns'|).  Only applies for vertical splits.
+|num_columns|).  Only applies for vertical splits.
 >
   let g:twiggy_adapt_columns = 1
 <
