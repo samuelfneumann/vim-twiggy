@@ -1451,7 +1451,9 @@ function! s:Render() abort
   exec "syntax match TwiggyAhead '\\V\\%2v" . s:icons.ahead . "'"
   highlight default link TwiggyAhead Type
 
-  exec "syntax match TwiggyAheadBehind '\\V\\%2v" . s:icons.behind . "'"
+  exec "syntax match TwiggyBehind '\\V\\%2v" . s:icons.behind . "'"
+  highlight default link TwiggyBehind Type
+
   exec "syntax match TwiggyAheadBehind '\\V\\%2v" . s:icons.both . "'"
   highlight default link TwiggyAheadBehind Type
 

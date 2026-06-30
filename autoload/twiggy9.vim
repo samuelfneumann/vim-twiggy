@@ -68,6 +68,11 @@ def Mapping(mapping: any, fn: any, args: any)
       .. ' <ScriptCmd>CallMapping(''' .. EncodeMapping(mapping) .. ''')<CR>'
 enddef
 
+def VisualMapping(mapping: any, fn: any, args: any)
+  execute 'xnoremap <buffer> <silent> ' .. mapping
+      .. ' <ScriptCmd>VisualCall(''' .. fn .. ''', ' .. string(args) .. ')<CR>'
+enddef
+
 def GetVim9Indicator(force: bool=false): string
 	const indicator = "(vim9)"
 	if force | return indicator | endif
@@ -212,6 +217,41 @@ def CallMapping(mapping: any)
       wincmd p
       Git
     endif
+    RenderOutputBuffer()
+  endif
+enddef
+
+def VisualCall(fn: any, args: any)
+  var lnum1 = min([line('v'), line('.')])
+  var lnum2 = max([line('v'), line('.')])
+  execute "normal! \<Esc>"
+
+  var branches = BranchesInRange(lnum1, lnum2)
+  if empty(branches)
+    return
+  endif
+
+  if fn ==# 'YankBranches'
+    YankBranches(lnum1, lnum2)
+    return
+  endif
+
+  var original_line = line('.')
+  var failed = false
+  for branch in branches
+    cursor(branch.line, 1)
+    if call(fn, args)
+      failed = true
+    endif
+  endfor
+  cursor(original_line, 1)
+
+  if failed
+    ErrorMsg()
+  else
+    Render()
+    RefreshBuffers()
+    Buffocus(t:twiggy_bufnr)
     RenderOutputBuffer()
   endif
 enddef
@@ -516,6 +556,16 @@ def g:TwiggyBranchUnderCursor(): any
     throw 'Not in twiggy buffer'
   endif
   return BranchUnderCursor()
+enddef
+
+def BranchesInRange(lnum1: any, lnum2: any): list<any>
+  var branches = []
+  for line_no in range(lnum1, lnum2)
+    if has_key(branch_line_refs, line_no)
+      add(branches, branch_line_refs[line_no])
+    endif
+  endfor
+  return branches
 enddef
 
 def GetUniqBranchNamesFromReflog(): list<any>
@@ -1284,8 +1334,15 @@ def Render()
   Mapping('a', 'ToggleSlashSort', [1])
   Mapping('ga', 'ToggleSlashSort', [0])
 
+  VisualMapping('d', 'Delete', [])
+  VisualMapping('f', 'Fetch', [0])
+  VisualMapping('y', 'YankBranches', [])
+  VisualMapping('P', 'Push', [0, 0, g:twiggy_push_set_upstream])
+  VisualMapping('!P', 'Push', [0, 1, g:twiggy_push_set_upstream])
+
   if get(g:, 'twiggy_enable_remote_delete', false)
 	  call Mapping('dP',       'DeleteRemote',           [])
+	  call VisualMapping('dP', 'DeleteRemote',           [])
   endif
 
   nnoremap <buffer> <expr> . <ScriptCmd>Dot()
@@ -1329,17 +1386,25 @@ def Render()
 
   execute "syntax match TwiggyCurrent '\\V\\%1c" .. icons.current .. "'"
   highlight default link TwiggyCurrent Identifier
+
   execute "syntax match TwiggyTracking '\\V\\%2v" .. icons.tracking .. "'"
   highlight default link TwiggyTracking String
+
   execute "syntax match TwiggyAhead '\\V\\%2v" .. icons.ahead .. "'"
   highlight default link TwiggyAhead Type
-  execute "syntax match TwiggyAheadBehind '\\V\\%2v" .. icons.behind .. "'"
+
+  execute "syntax match TwiggyBehind '\\V\\%2v" .. icons.behind .. "'"
+  highlight default link TwiggyBehind Type
+
   execute "syntax match TwiggyAheadBehind '\\V\\%2v" .. icons.both .. "'"
   highlight default link TwiggyAheadBehind Type
+
   execute "syntax match TwiggyDetached '\\V\\%2v" .. icons.detached .. "'"
   highlight default link TwiggyDetached ErrorMsg
+
   execute "syntax match TwiggyUnmerged '\\V\\%1c" .. icons.unmerged .. "'"
   highlight default link TwiggyUnmerged Identifier
+
   execute "syntax match TwiggyWorktree '\\V\\%1c" .. icons.worktree .. "'"
   highlight default link TwiggyWorktree Special
 
@@ -1636,6 +1701,12 @@ def Yank()
   var branch = BranchUnderCursor()
   var reg = empty(v:register) ? '"' : v:register
   setreg(reg, branch.fullname)
+enddef
+
+def YankBranches(lnum1: any, lnum2: any)
+  var branches = BranchesInRange(lnum1, lnum2)
+  var reg = empty(v:register) ? '"' : v:register
+  setreg(reg, join(map(copy(branches), (_, val) => val.fullname), "\n"))
 enddef
 
 def Delete(): any
