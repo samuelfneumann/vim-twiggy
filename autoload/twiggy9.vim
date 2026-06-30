@@ -107,25 +107,26 @@ icons.worktree = icon_set[7]
 # -----------------------------------------------------------------------------
 g:twiggy_num_columns = get(g:, 'twiggy_num_columns', 31)
 g:twiggy_num_rows = get(g:, 'twiggy_num_rows', 31)
-g:twiggy_adapt_columns = get(g:, 'twiggy_adapt_columns', 0)
+g:twiggy_adapt_columns = get(g:, 'twiggy_adapt_columns', false)
 g:twiggy_split_direction = get(g:, 'twiggy_split_direction', 'vertical')
 g:twiggy_split_position = get(g:, 'twiggy_split_position', '')
 g:twiggy_local_branch_sort = get(g:, 'twiggy_local_branch_sort', 'alpha')
 g:twiggy_local_branch_sorts = get(g:, 'twiggy_local_branch_sorts', ['alpha', 'date', 'track', 'mru'])
 g:twiggy_remote_branch_sort = get(g:, 'twiggy_remote_branch_sort', 'alpha')
 g:twiggy_remote_branch_sorts = get(g:, 'twiggy_remote_branch_sorts', ['alpha', 'date'])
-g:twiggy_group_locals_by_slash = get(g:, 'twiggy_group_locals_by_slash', 1)
-g:twiggy_group_remotes_by_slash = get(g:, 'twiggy_group_remotes_by_slash', 0)
-g:twiggy_set_upstream = get(g:, 'twiggy_set_upstream', 1)
-g:twiggy_prompted_force_push = get(g:, 'twiggy_prompted_force_push', 1)
-g:twiggy_enable_remote_delete = get(g:, 'twiggy_enable_remote_delete', 0)
-g:twiggy_use_dispatch = get(g:, 'twiggy_use_dispatch', exists('g:loaded_dispatch') && g:loaded_dispatch ? 1 : 0)
-g:twiggy_close_on_fugitive_cmd = get(g:, 'twiggy_close_on_fugitive_cmd', 0)
-g:twiggy_enable_quickhelp = get(g:, 'twiggy_enable_quickhelp', 1)
+g:twiggy_group_locals_by_slash = get(g:, 'twiggy_group_locals_by_slash', true)
+g:twiggy_group_remotes_by_slash = get(g:, 'twiggy_group_remotes_by_slash', false)
+g:twiggy_set_upstream = get(g:, 'twiggy_set_upstream', true)
+g:twiggy_prompted_force_push = get(g:, 'twiggy_prompted_force_push', true)
+g:twiggy_enable_remote_delete = get(g:, 'twiggy_enable_remote_delete', false)
+g:twiggy_use_dispatch = get(g:, 'twiggy_use_dispatch', exists('g:loaded_dispatch') && g:loaded_dispatch ? true : false)
+g:twiggy_close_on_fugitive_cmd = get(g:, 'twiggy_close_on_fugitive_cmd', false)
+g:twiggy_enable_quickhelp = get(g:, 'twiggy_enable_quickhelp', true)
 g:twiggy_show_full_ui = get(g:, 'twiggy_show_full_ui', g:twiggy_enable_quickhelp)
 g:twiggy_git_log_command = get(g:, 'twiggy_git_log_command', '')
-g:twiggy_refresh_buffers = get(g:, 'twiggy_refresh_buffers', 1)
-g:twiggy_push_set_upstream = get(g:, 'twiggy_push_set_upstream', 1)
+g:twiggy_refresh_buffers = get(g:, 'twiggy_refresh_buffers', true)
+g:twiggy_push_set_upstream = get(g:, 'twiggy_push_set_upstream', true)
+g:twiggy_show_vim9_indicator = get(g:, 'twiggy_show_vim9_indicator', false)
 
 def ShowingFullUi(): bool
   return g:twiggy_enable_quickhelp && g:twiggy_show_full_ui
@@ -1151,7 +1152,7 @@ def Render()
     t:twiggy_bufnr = bufnr('')
   endif
 
-  if g:twiggy_enable_quickhelp > 0
+  if g:twiggy_enable_quickhelp
     nnoremap <buffer> <silent> g? :<C-U>call Quickhelp()<CR>
   endif
 
