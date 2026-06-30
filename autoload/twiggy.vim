@@ -1840,9 +1840,22 @@ endfunction
 function! s:DeleteRemote() abort
   let branch = s:branch_under_cursor()
 
+  if branch.is_local
+    if branch.tracking ==# ''
+      redraw
+      echo branch.fullname . ' has no tracking branch'
+      return 1
+    endif
+    let group = branch.remote
+    let name = s:sub(branch.tracking, group . '/', '')
+  else
+    let group = branch.group
+    let name = branch.name
+  endif
+
   return s:Confirm(
-        \ 'WARNING! Delete branch ' . branch.name . ' from remote repo: ' . branch.group . '?',
-        \ "s:git_cmd('push --delete " . branch.group . " :" . branch.name . "', 1)[0]", 0)
+        \ 'WARNING! Delete branch ' . name . ' from remote repo: ' . group . '?',
+        \ "s:git_cmd('push --delete " . group . " " . name . "', 0)[0]", 0)
 endfunction
 
 "     {{{3 Fetch

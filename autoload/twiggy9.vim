@@ -1743,8 +1743,22 @@ enddef
 
 def DeleteRemote(): number
   var branch = BranchUnderCursor()
-  return Confirm('WARNING! Delete branch ' .. branch.name .. ' from remote repo: ' .. branch.group .. '?',
-    "GitCmd('push --delete " .. branch.group .. ' :' .. branch.name .. "', 1)[0]", 0)
+  var group: string
+  var name: string
+  if branch.is_local
+    if branch.tracking ==# ''
+      redraw
+      echo branch.fullname .. ' has no tracking branch'
+      return 1
+    endif
+    group = branch.remote
+    name = Sub(branch.tracking, group .. '/', '')
+  else
+    group = branch.group
+    name = branch.name
+  endif
+  return Confirm('WARNING! Delete branch ' .. name .. ' from remote repo: ' .. group .. '?',
+    "GitCmd('push --delete " .. group .. ' ' .. name .. "', 0)[0]", 0)
 enddef
 
 def Fetch(pull: any): number
