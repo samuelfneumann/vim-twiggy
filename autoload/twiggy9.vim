@@ -194,12 +194,11 @@ enddef
 def CallMapping(mapping: any)
   var key = EncodeMapping(mapping)
   var deprecated_mappings = {
-    F: 'f',
-    ___: 'P',
-    g___: 'gP',
-    ['!___']: '!P',
-    V: 'p',
-    d___: 'dP',
+    'F': 'f',
+	'^': 'P',
+    'g^': 'gP',
+    '!^': '!P',
+    'd^': 'dP',
   }
   var encoded_mapping = EncodeMapping(mapping)
   if has_key(deprecated_mappings, encoded_mapping)
