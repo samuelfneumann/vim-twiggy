@@ -27,7 +27,7 @@ COMMANDS                                        *twiggy-commands*
 
 
 FUGITIVE COMPATIBILITY                         *twiggy-fugitive*
-Twiggy is aware of the |fugitive| commands |:Gstatus|, |:Gcommit| and |:Gblame|, |:Git|, etc.
+Twiggy is aware of the |fugitive| commands |:Git|, |:Git commit|,  and |:Git blame|,  
 Calling these within the twiggy buffer will first jump to the last used buffer
 before running the actual commands.  This avoids a surprisingly claustrophobic
 feeling while inside twiggy's buffer.  You may also opt to automatically close
