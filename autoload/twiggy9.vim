@@ -1135,7 +1135,7 @@ def Render()
   if !exists('t:twiggy_bufnr') || !(exists('t:twiggy_bufnr') && t:twiggy_bufnr == bufnr(''))
     var fname = 'twiggy://' .. t:twiggy_git_dir .. '/branches'
     if &filetype ==# 'twiggyqh'
-      execute 'edit ' .. fname
+      execute 'silent keepalt edit ' .. fname
     else
       if g:twiggy_split_direction ==# 'horizontal'
         execute('silent keepalt ' .. g:twiggy_split_position .. ' :' .. g:twiggy_num_rows .. 'split ' .. fname)
