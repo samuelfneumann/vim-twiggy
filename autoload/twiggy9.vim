@@ -1482,9 +1482,9 @@ def Quickhelp()
   endif
 enddef
 
-def Refresh()
+def Refresh(): number
   if exists('t:refreshing') || !exists('t:twiggy_bufnr') || (!exists('t:twiggy_git_dir') && !exists('b:git_dir'))
-    return
+    return 0
   endif
 
   t:refreshing = 1
@@ -1519,6 +1519,7 @@ def Refresh()
   endif
 
   unlet t:refreshing
+  return 0
 enddef
 
 export def Main(...args: list<any>)
@@ -1664,7 +1665,7 @@ def Checkout(track: any, merge: any): number
   endif
 
   init_line = 0
-  last_branch_under_cursor = 0
+  last_branch_under_cursor = {}
   doautocmd User TwiggyCheckout
   fugitive#ReloadStatus()
   return 0
@@ -1686,7 +1687,7 @@ def CheckoutAs(): number
     echo 'Moving from ' .. branch.name .. ' to ' .. new_name .. ellipsis
 
     init_line = 0
-    last_branch_under_cursor = 0
+    last_branch_under_cursor = {}
 
     doautocmd User TwiggyCheckout
     fugitive#ReloadStatus()
@@ -1708,7 +1709,7 @@ def YankBranches(lnum1: any, lnum2: any)
   setreg(reg, join(map(copy(branches), (_, val) => val.fullname), "\n"))
 enddef
 
-def Delete(confirm: bool=false): any
+def Delete(confirm: bool=false): number
   var branch = BranchUnderCursor()
 
   if branch.fullname ==# GetCurrentBranch()
@@ -1725,6 +1726,8 @@ def Delete(confirm: bool=false): any
       return Confirm('Unmerged!  Force-delete local branch ' .. branch.fullname .. '?',
         "GitCmd('branch -D " .. branch.fullname .. "', 0)[0]", 0)
 	endif
+	return v:shell_error
+
   else
 	if confirm
         last_output = []
@@ -1733,12 +1736,12 @@ def Delete(confirm: bool=false): any
 	else
 		GitCmd('branch -d -r ' .. branch.fullname, 0)
 	endif
-  endif
+	return v:shell_error
 
-  return 0
+  endif
 enddef
 
-def DeleteRemote(): any
+def DeleteRemote(): number
   var branch = BranchUnderCursor()
   return Confirm('WARNING! Delete branch ' .. branch.name .. ' from remote repo: ' .. branch.group .. '?',
     "GitCmd('push --delete " .. branch.group .. ' :' .. branch.name .. "', 1)[0]", 0)
@@ -1813,7 +1816,7 @@ def Rebase(remote: any, autostash: any, interactive: any): number
   return 0
 enddef
 
-def Continue(git_type: any)
+def Continue(git_type: any): number
   if git_type ==? 'stash'
     ContinueStash()
   else
@@ -1822,15 +1825,17 @@ def Continue(git_type: any)
 
   redraw
   fugitive#ReloadStatus()
+  return 0
 enddef
 
-def Skip()
+def Skip(): number
   GitCmd('rebase --skip', 1, {no_dispatch: 1})
   redraw
   fugitive#ReloadStatus()
+  return 0
 enddef
 
-def Abort(git_type: any)
+def Abort(git_type: any): number
   if git_type ==? 'stash'
     AbortStash()
   else
@@ -1840,6 +1845,7 @@ def Abort(git_type: any)
   redraw
   echo git_type .. ' aborted'
   fugitive#ReloadStatus()
+  return 0
 enddef
 
 def ContinueStash()
@@ -1919,7 +1925,7 @@ def g:TwiggyCompleteRemotes(A: any, L: any, P: any): string
   return remotes
 enddef
 
-def Rename()
+def Rename(): number
   requires_buf_refresh = 0
 
   var branch = BranchUnderCursor()
@@ -1930,9 +1936,10 @@ def Rename()
     GitCmd('branch -m ' .. branch.fullname .. ' ' .. new_name, 0)
     fugitive#ReloadStatus()
   endif
+  return 0
 enddef
 
-def Stash(pop: any)
+def Stash(pop: any): number
   var pop_arg = pop ? ' pop' : ''
   GitCmd('stash' .. pop_arg, 0)
 
@@ -1940,6 +1947,7 @@ def Stash(pop: any)
   if !v:shell_error
     echo 'Stash' .. (pop ? ' popped!' : 'ed')
   endif
+  return 0
 enddef
 
 # -----------------------------------------------------------------------------
