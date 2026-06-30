@@ -1,8 +1,7 @@
 " twiggy.vim -- Maintain your bearings while branching with git
-" Maintainer: Andrew Haust <andrewwhhaust@gmail.com>
-" Website:    https://www.github.com/sodapopcan/vim-twiggy
+" Maintainer: Samuel Neumann <samuelfneumann@gmail.com>
+" Website:    https://samuelfneumann.github.io/
 " License:    Same terms as Vim itself (see :help license)
-" Version:    0.4
 
 if exists('g:autoloaded_twiggy')
   finish
@@ -68,6 +67,8 @@ let s:requires_buf_refresh     = 1
 let s:sorted      = 0
 let s:git_cmd_run = 0
 
+let s:worktree_branches = {}
+
 let s:branch_marker = {
       \ 'local': '(l)',
       \ 'remote': '(r)'
@@ -80,12 +81,12 @@ let s:branch_marker_vmagic = {
 " {{{1 Icons
 if exists('g:twiggy_icons')
       \ && type(g:twiggy_icons) == 3
-      \ && len(filter(g:twiggy_icons, 'type(v:val) ==# 1 && strchars(v:val) ==# 1')) ==# 7
+      \ && len(filter(g:twiggy_icons, 'type(v:val) ==# 1 && strchars(v:val) ==# 1')) ==# 8
   let s:icon_set = g:twiggy_icons
 elseif has('multi_byte')
-  let s:icon_set = ['*', '✓', '↑', '↓', '↕', '∅', '✗']
+  let s:icon_set = ['*', '✓', '↑', '↓', '↕', '∅', '✗', '⊞']
 else
-  let s:icon_set = ['*', '=', '+', '-', '~', '%', 'x']
+  let s:icon_set = ['*', '=', '+', '-', '~', '%', 'x', '+']
 endif
 
 let s:ellipsis = has('multi_byte') ? '…' : '...'
@@ -97,6 +98,7 @@ let s:icons.behind   = s:icon_set[3]
 let s:icons.both     = s:icon_set[4]
 let s:icons.detached = s:icon_set[5]
 let s:icons.unmerged = s:icon_set[6]
+let s:icons.worktree = s:icon_set[7]
 
 
 " {{{1 Options
@@ -261,6 +263,8 @@ function! s:parse_branch(branch, type) abort
   if branch.current
     let git_mode = exists('t:twiggy_git_mode') ? t:twiggy_git_mode : s:get_git_mode()
     let branch.decoration = git_mode !=# 'normal' ? s:icons.unmerged : s:icons.current
+  elseif has_key(s:worktree_branches, pieces[1])
+    let branch.decoration = s:icons.worktree
   endif
 
   let remote_details = pieces[3] . ' ' . pieces[4]
@@ -389,8 +393,23 @@ function! s:get_git_mode() abort
   endif
 endfunction
 
+"   {{{2 update_worktree_branches
+function! s:update_worktree_branches() abort
+  let s:worktree_branches = {}
+  let worktree_count = 0
+  for line in s:git_cmd('worktree list --porcelain', 0)
+    if line =~# '^worktree '
+      let worktree_count += 1
+    elseif line =~# '^branch ' && worktree_count > 1
+      let branchname = substitute(matchstr(line, '^branch \zs.*'), '^refs/heads/', '', '')
+      let s:worktree_branches[branchname] = 1
+    endif
+  endfor
+endfunction
+
 "   {{{2 get_branches
 function! twiggy#get_branches() abort
+  call s:update_worktree_branches()
   let locals = s:_git_branch_vv('heads')
   let locals_sorted = []
 
@@ -840,6 +859,8 @@ function! s:show_branch_details() abort
 			  echohl TwiggyDetached
 		  elseif icon ==# s:icons.unmerged
 			  echohl TwiggyUnmerged
+		  elseif icon ==# s:icons.worktree
+			  echohl TwiggyWorktree
 		  else
 			  echohl ErrorMsg
 		  endif
@@ -899,6 +920,7 @@ function! s:RenderOutputBuffer() abort
     return
   endif
   silent keepalt botright new TwiggyOutput
+  setlocal filetype=twiggyoutput
   let output = s:last_output
   let height = len(output)
   if height < 5 | let height = 5 | endif
@@ -919,7 +941,15 @@ function! s:RenderOutputBuffer() abort
   syntax match TwiggyOutputText "\v^[^ ](.*)"
   highlight link TwiggyOutputText  Comment
   syntax match TwiggyOutputFile "\v^\t(.*)"
-  highlight link TwiggyOutputFile Constant
+  highlight link TwiggyOutputFile File
+endfunction
+
+function! twiggy#CloseOutputBuffer() abort
+	for info in getbufinfo()
+	  if getbufvar(info.bufnr, '&filetype') ==# 'twiggyoutput'
+		execute 'bwipeout' info.bufnr
+	  endif
+	endfor
 endfunction
 
 "   {{{2 Confirm
@@ -1410,21 +1440,24 @@ function! s:Render() abort
   exec "syntax match TwiggyCurrent '\\V\\%1c" . s:icons.current . "'"
   highlight default link TwiggyCurrent Identifier
 
-  exec "syntax match TwiggyTracking '\\V\\%2c" . s:icons.tracking . "'"
+  exec "syntax match TwiggyTracking '\\V\\%2v" . s:icons.tracking . "'"
   highlight default link TwiggyTracking String
 
-  exec "syntax match TwiggyAhead '\\V\\%2c" . s:icons.ahead . "'"
+  exec "syntax match TwiggyAhead '\\V\\%2v" . s:icons.ahead . "'"
   highlight default link TwiggyAhead Type
 
-  exec "syntax match TwiggyAheadBehind '\\V\\%2c" . s:icons.behind . "'"
-  exec "syntax match TwiggyAheadBehind '\\V\\%2c" . s:icons.both . "'"
+  exec "syntax match TwiggyAheadBehind '\\V\\%2v" . s:icons.behind . "'"
+  exec "syntax match TwiggyAheadBehind '\\V\\%2v" . s:icons.both . "'"
   highlight default link TwiggyAheadBehind Type
 
-  exec "syntax match TwiggyDetached '\\V\\%2c" . s:icons.detached . "'"
+  exec "syntax match TwiggyDetached '\\V\\%2v" . s:icons.detached . "'"
   highlight default link TwiggyDetached ErrorMsg
 
   exec "syntax match TwiggyUnmerged '\\V\\%1c" . s:icons.unmerged . "'"
   highlight default link TwiggyUnmerged Identifier
+
+  exec "syntax match TwiggyWorktree '\\V\\%1c" . s:icons.worktree . "'"
+  highlight default link TwiggyWorktree Special
 
   syntax match TwiggySortText '\v[[a-z]+]'
   highlight default link TwiggySortText Comment
@@ -1544,12 +1577,31 @@ function! s:Refresh() abort
   unlet t:refreshing
 endfunction
 
+"     {{{3 Main
+function! twiggy#Main(...) abort
+  if len(a:000) == 0
+    call twiggy#Branch()
+  elseif a:000[0] ==# 'switch'
+    if len(a:000) < 2
+      echo "Usage: :Twiggy switch BRANCH"
+      return
+    endif
+    call call('twiggy#Branch', a:000[1:])
+  elseif a:000[0] ==# 'close'
+    call twiggy#CloseOutputBuffer()
+  else
+	echohl ErrorMsg
+    echo "Unknown Twiggy subcommand: " . a:000[0]
+	echohl clear
+  endif
+endfunction
+
 "     {{{3 Branch
 function! twiggy#Branch(...) abort
   if len(a:000)
     let current_branch = s:get_current_branch()
-    let f = s:branch_exists(a:1) ? '' : '-b '
-    call s:git_cmd('checkout ' . f . join(a:000), 0)
+    let f = s:branch_exists(a:1) ? '' : '-c '
+    call s:git_cmd('switch ' . f . join(a:000), 0)
     call s:RenderOutputBuffer()
     if exists('t:twiggy_bufnr')
       call s:Refresh()
@@ -1625,17 +1677,10 @@ endfunction
 
 "   {{{2 Git
 "     {{{3 Checkout
-function! s:Checkout(track, merge) abort
-  let current_branch = s:get_current_branch()
-  let switch_branch = s:branch_under_cursor()
-  let merge_opt = a:merge ? ' --merge ' : ''
-
-  if s:dirty_tree() && !a:merge
+function! s:ShowDirtyTreeOnCheckoutMessage()
     let dirty_files = s:git_cmd('diff --name-only', 0)
     let warning = 'error: Your local changes to the following files would be overwritten by checkout:'
-    let s:last_output = [
-          \ warning
-          \ ]
+    let s:last_output = [warning]
     call extend(s:last_output, map(dirty_files, '"\t" . v:val'))
     call extend(s:last_output, [
           \ 'Please commit your changes or stash them before you switch branches.',
@@ -1643,6 +1688,15 @@ function! s:Checkout(track, merge) abort
           \ ])
     let v:warningmsg = warning
     call s:RenderOutputBuffer()
+endfunction
+
+function! s:Checkout(track, merge) abort
+  let current_branch = s:get_current_branch()
+  let switch_branch = s:branch_under_cursor()
+  let merge_opt = a:merge ? ' --merge ' : ''
+
+  if s:dirty_tree() && !a:merge
+	call s:ShowDirtyTreeOnCheckoutMessage()
     return 1
   endif
 
@@ -1666,6 +1720,11 @@ function! s:Checkout(track, merge) abort
       call s:git_cmd('switch ' . merge_opt . switch_branch.tracking, 0)
     else " tracking and branch is local
       call s:git_cmd('switch ' . merge_opt . switch_branch.fullname, 0)
+    endif
+
+    if v:shell_error
+      call s:RenderOutputBuffer()
+      return 1
     endif
   endif
 
@@ -1776,7 +1835,7 @@ function! s:DeleteRemote() abort
 
   return s:Confirm(
         \ 'WARNING! Delete branch ' . branch.name . ' from remote repo: ' . branch.group . '?',
-        \ "s:git_cmd('push " . branch.group . " :" . branch.name . "', 1)[0]", 0)
+        \ "s:git_cmd('push --delete " . branch.group . " :" . branch.name . "', 1)[0]", 0)
 endfunction
 
 "     {{{3 Fetch

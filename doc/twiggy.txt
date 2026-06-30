@@ -9,17 +9,21 @@ Maintain your bearings while working with git branches.
 
 COMMANDS                                        *twiggy-commands*
 
-:Twiggy [args]              With no arguments, open a split containing an
-                            interactive and decorated list of branches. See
-                            |twiggy-mappings| for a list of available
-                            buffer-local mappings.
+:Twiggy [{sub-command}] [{args}]
+    With no arguments, open a split containing an interactive and decorated
+    list of branches. See |twiggy-mappings| for a list of available
+    buffer-local mappings.
 
-                            If [branch] is given, it will be checked-out -- If
-                            the branch does not exist, it will be created
-                            first.  In this regard, it acts like a cross between
-                            the `git branch` and `git checkout` commands.  You
-                            may also provide the starting point branch as a
-                            second argument.
+    [sub-command] is a Twiggy sub-command, one of:
+    
+    'switch' {branch}  
+        If [branch] is given, it will be checked-out -- If the branch does not
+        exist, it will be created first.  In this regard, it acts like a cross
+        between the `git branch` and `git checkout` commands.  You may also
+        provide the starting point branch as a second argument.
+
+    'close'
+        Closes all opened 'TwiggyOutput' buffers
 
 
 FUGITIVE COMPATIBILITY                         *twiggy-fugitive*
@@ -46,12 +50,13 @@ multi_byte    standard
 ↕             ~             branch is both ahead and behind its upstream
 ∅             %             branch is detached
 ✗             x             in merge/rebase/stash conflict state
+⊞             +             branch is checked out in a worktree
 
 You may also use you own icons by setting the following in your vimrc:
 >
-  let g:twiggy_icons = ['*', '=', '+', '-', '~', '%', 'x']
+  let g:twiggy_icons = ['*', '=', '+', '-', '~', '%', 'x', '+']
 <
-The list must have 7, single character entries.  The first position is used
+The list must have 8, single character entries.  The first position is used
 for the current branch then the rest are in the order listed in the above
 legend.
 
@@ -188,7 +193,7 @@ Prompts to make sure you really want to force push (with lease).  Turn this off 
 <
                                                 *'enable_quickhelp'*
 Default: 1
-Enables |twiggy-?| for quickhelp.  To turn it off:
+Enables |twiggy-g?| for quickhelp.  To turn it off:
 >
   let g:twiggy_enable_quickhelp = 0
 <
@@ -209,8 +214,14 @@ MAPPINGS                                        *twiggy-mappings*
                                                 *twiggy-<C-P>*
 <C-P>             Jump to the first branch of the previous group
 
-                                                *twiggy-<C-^>*
-J                 Jump to the current branch
+                                                *twiggy-JL*
+JL                Jump to the current branch
+
+                                                *twiggy-JU*
+JU                Jump to the current branch's upstream
+
+                                                *twiggy-JP*
+JP                Jump to the current branch's push destination
 
                   Sorting~
                                                 *twiggy-i*
@@ -243,6 +254,9 @@ c                 Checkout the branch under the cursor.  If the branch is a
                   remote, create a tracking branch if one doesn't already
                   exist, otherwise, checkout in detached HEAD.
 
+                                                *twiggy-cm*
+cm               Same as c but with `--merge`
+
                                                 *twiggy-C*
 C                 Checkout the remote branch under the cursor in detached
                   HEAD.  If the branch is a local tracking branch, it will
@@ -256,6 +270,9 @@ C                 Checkout the remote branch under the cursor in detached
 
                                                 *twiggy-o*
 o                 Same as c
+
+                                                *twiggy-om*
+o                 Same as o but with `--merge`
 
                                                 *twiggy-O*
 O                 Same as C
@@ -273,7 +290,7 @@ cb<space>         Populate command line with "G branch "
 co<space>         Populate command line with "G checkout "
 
                                                 *twiggy-s<space>*
-s<space>         Populate command line with "G switch "
+cs<space>         Populate command line with "G switch "
 
                   Committing~
                                                 *twiggy-c<space>*
@@ -434,8 +451,8 @@ q                 Quit
                                                 *twiggy-Q*
 Q                 Quit all twiggy buffers (including the error buffer)
 
-                                                *twiggy-?*
-?                 Open the quickhelp
+                                                *twiggy-g?*
+g?                Open the quickhelp
 
 
 AUTOCOMMANDS                                    *twiggy-autocommands*
@@ -465,5 +482,6 @@ TwiggyIconAhead             Type         icon: branch is ahead of remote
 TwiggyIconAheadBehind       Type         icon: branch is both ahead and behind
 TwiggyIconDetached          Identifier   icon: current branch is detached
 TwiggyIconUnmerged          Type         icon: current branch is unmerged
+TwiggyWorktree              Special      icon: branch is checked out in a worktree
 
   vim:tw=78:et:ft=help:norl:
