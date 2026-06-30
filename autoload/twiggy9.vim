@@ -1319,7 +1319,6 @@ def Render()
   Mapping('^', 'Push', [0, 0, 1])
   Mapping('g^', 'Push', [1, 0, 1])
   Mapping('!^', 'Push', [0, 1, 1])
-  Mapping('V', 'Pull', [])
   Mapping('P', 'Push', [0, 0, g:twiggy_push_set_upstream])
   Mapping('gP', 'Push', [1, 0, g:twiggy_push_set_upstream])
   Mapping('!P', 'Push', [0, 1, g:twiggy_push_set_upstream])
@@ -1732,7 +1731,7 @@ def Delete(confirm: bool=false): any
 		return Confirm('Force-delete remote branch ' .. branch.fullname .. '?',
 		  "GitCmd('branch -d -r " .. branch.fullname .. "', 0)[0]", 0)
 	else
-		GitCmd('branch -d -r ' .. branch.fullname , 0)
+		GitCmd('branch -d -r ' .. branch.fullname, 0)
 	endif
   endif
 
