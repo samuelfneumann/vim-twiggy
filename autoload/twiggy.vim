@@ -2024,13 +2024,14 @@ function! s:Push(choose_upstream, force, set_upstream) abort
 endfunction
 
 function! TwiggyCompleteRemotes(A,L,P) abort
+  let remotes = ''
   for remote in s:git_cmd('remote', 0)
     if match(remote, '\v^' . a:A) >= 0
-      return remote
+      let remotes = remotes . remote . "\n"
     endif
   endfor
 
-  return ''
+  return remotes
 endfunction
 
 "     {{{3 Rename

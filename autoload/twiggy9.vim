@@ -1832,12 +1832,13 @@ def Push(choose_upstream: any, force: any, set_upstream: any): number
 enddef
 
 def g:TwiggyCompleteRemotes(A: any, L: any, P: any): string
+  var remotes = ''
   for remote in GitCmd('remote', 0)
     if match(remote, '\v^' .. A) >= 0
-      return remote
+		remotes = remotes .. remote .. "\n"
     endif
   endfor
-  return ''
+  return remotes
 enddef
 
 def Rename()
