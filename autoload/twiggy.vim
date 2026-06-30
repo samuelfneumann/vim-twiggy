@@ -1475,7 +1475,6 @@ function! s:Render() abort
   highlight default link TwiggyDetachedText Special
 
   if exists('s:branches_not_in_reflog') && len(s:branches_not_in_reflog)
-    return
     exec "syntax match TwiggyNotInReflog '" .
           \ s:gsub(s:gsub(join(s:branches_not_in_reflog), '\(', ''), '\)', '') .
           \ "'"
