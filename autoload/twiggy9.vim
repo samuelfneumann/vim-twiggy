@@ -1709,26 +1709,34 @@ def YankBranches(lnum1: any, lnum2: any)
   setreg(reg, join(map(copy(branches), (_, val) => val.fullname), "\n"))
 enddef
 
-def Delete(): any
+def Delete(confirm: bool=false): any
   var branch = BranchUnderCursor()
 
   if branch.fullname ==# GetCurrentBranch()
-    return
+    return 0
   endif
 
   init_line = branch.line
 
   if branch.is_local
     GitCmd('branch -d ' .. branch.fullname, 0)
-    if v:shell_error
+
+    if v:shell_error && confirm
       last_output = []
-      return Confirm('UNMERGED!  Force-delete local branch ' .. branch.fullname .. '?',
+      return Confirm('Unmerged!  Force-delete local branch ' .. branch.fullname .. '?',
         "GitCmd('branch -D " .. branch.fullname .. "', 0)[0]", 0)
-    endif
+	endif
   else
-    return Confirm('Delete remote branch ' .. branch.fullname .. '?',
-      "GitCmd('branch -d -r " .. branch.fullname .. "', 0)[0]", 0)
+	if confirm
+        last_output = []
+		return Confirm('Force-delete remote branch ' .. branch.fullname .. '?',
+		  "GitCmd('branch -d -r " .. branch.fullname .. "', 0)[0]", 0)
+	else
+		GitCmd('branch -d -r ' .. branch.fullname , 0)
+	endif
   endif
+
+  return 0
 enddef
 
 def DeleteRemote(): any

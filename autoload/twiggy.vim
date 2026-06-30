@@ -1808,13 +1808,14 @@ function! s:Delete(confirm) abort
             \ "s:git_cmd('branch -D " . branch.fullname . "', 0)[0]", 0)
     endif
   else
-	  call s:git_cmd('branch -d -r " . branch.fullname . "', 0)
-      if a:confirm && v:shell_error
+      if a:confirm
         " blow out last output to suppress error buffer
         let s:last_output = []
         return s:Confirm(
 			  \ 'Force-delete remote branch ' . branch.fullname . '?',
 			  \ "s:git_cmd('branch -d -r " . branch.fullname . "', 0)[0]", 0)
+	  else
+	    call s:git_cmd('branch -d -r " . branch.fullname . "', 0)
       endif
   endif
 endfunction
