@@ -191,6 +191,12 @@ Prompts to make sure you really want to force push (with lease).  Turn this off 
 >
   let g:twiggy_prompted_force_push = 0
 <
+                                                *'use_dispatch'*
+Default: 1 if vim-dispatch is loaded, 0 otherwise
+Whether to use vim-dispatch for background git commands.  To turn it off:
+>
+  let g:twiggy_use_dispatch = 0
+<
                                                 *'enable_quickhelp'*
 Default: 1
 Enables |twiggy-g?| for quickhelp.  To turn it off:
