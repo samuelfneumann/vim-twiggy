@@ -237,6 +237,7 @@ gi                Cycle through sorts of groups other than that of the branch
                   under the cursor.  Useful for lazily resorting remote
                   branches without having to jump down to them.
 
+                                                *twiggy-gI*
 gI                Like gi, but in reverse... even though there are only two
                   options.
 
