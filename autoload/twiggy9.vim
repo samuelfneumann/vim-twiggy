@@ -968,24 +968,24 @@ def TraverseGroups(motion: any, end_: any = 0, count: any = 1)
     if motion ==# 'j'
       if end_
         TraverseBranches('j')
-        if search('\v(^[A-Za-z])', 'W')
+        if search('\v(^[A-Za-z])', 'W') > 0
           TraverseBranches('k')
         else
           normal! G
         endif
       else
-        if search('\v^[A-Za-z]', 'W')
+        if search('\v^[A-Za-z]', 'W') > 0
           normal! j
         endif
       endif
     elseif motion ==# 'k'
       if end_
-        if search('\v^[A-Za-z]', 'bW')
+        if search('\v^[A-Za-z]', 'bW') > 0
           TraverseBranches('k')
         endif
       else
         TraverseBranches('k')
-        if search('\v^[A-Za-z]', 'bW')
+        if search('\v^[A-Za-z]', 'bW') > 0
           TraverseBranches('j')
         endif
       endif
