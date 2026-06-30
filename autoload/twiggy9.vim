@@ -1343,11 +1343,11 @@ def Render()
   highlight default link TwiggySortText Comment
 
   if ShowingFullUi()
-    syntax match TwiggyHeader "\v%1l^Twiggy"
+    syntax match TwiggyHeader "\v%1l^Twiggy" nextgroup=TwiggyHelpHint
     highlight default link TwiggyHeader Title
-    syntax match TwiggyHelpHint "\v%1lHelp: "
+    syntax match TwiggyHelpHint "\v%1lHelp: " nextgroup = TwiggyHelpHintKey
     highlight default link TwiggyHelpHint fugitiveHelpHeader
-    syntax match TwiggyHelpHintKey "\v%1l\g\?"
+    syntax match TwiggyHelpHintKey "\v%1l\g\?" nextgroup=Twiggy9Indicator
     highlight default link TwiggyHelpHintKey fugitiveHelpTag
 
 	const indicator = GetVim9Indicator(true)
