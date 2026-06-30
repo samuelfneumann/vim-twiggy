@@ -76,7 +76,7 @@ enddef
 def GetVim9Indicator(force: bool=false): string
 	const indicator = "(vim9)"
 	if force | return indicator | endif
-	return get(g:, 'twiggy_show_vim9_indicator', true) ? indicator : ''
+	return g:twiggy_show_vim9_indicator ? indicator : ''
 enddef
 
 # -----------------------------------------------------------------------------
@@ -1341,7 +1341,7 @@ def Render()
   VisualMapping('P', 'Push', [0, 0, g:twiggy_push_set_upstream])
   VisualMapping('!P', 'Push', [0, 1, g:twiggy_push_set_upstream])
 
-  if get(g:, 'twiggy_enable_remote_delete', false)
+  if g:twiggy_enable_remote_delete
 	  call Mapping('dP',       'DeleteRemote',           [])
 	  call VisualMapping('dP', 'DeleteRemote',           [])
   endif
