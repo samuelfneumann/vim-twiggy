@@ -321,7 +321,7 @@ M                 Merge the branch under the cursor's remote into the current
 gm                Like m, but with --no-ff
 
                                                 *twiggy-gM*
-gm                Like M, but with --no-ff
+gM                Like M, but with --no-ff
 
                                                 *twiggy-r<space>*
 r<Space>          Populate command line with :Git rebase
