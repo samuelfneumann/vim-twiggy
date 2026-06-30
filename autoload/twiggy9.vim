@@ -1284,6 +1284,10 @@ def Render()
   Mapping('a', 'ToggleSlashSort', [1])
   Mapping('ga', 'ToggleSlashSort', [0])
 
+  if get(g:, 'twiggy_enable_remote_delete', false)
+	  call Mapping('dP',       'DeleteRemote',           [])
+  endif
+
   nnoremap <buffer> <expr> . <ScriptCmd>Dot()
 
   if g:twiggy_git_log_command ==# ''

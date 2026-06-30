@@ -1304,6 +1304,11 @@ function! s:Render() abort
   call s:mapping('a',       'ToggleSlashSort',  [1])
   call s:mapping('ga',      'ToggleSlashSort',  [0])
 
+  if get(g:, 'twiggy_enable_remote_delete', 0)
+	  call s:mapping('dP',       'DeleteRemote',           [])
+	  call s:visual_mapping('dP',       'DeleteRemote',           [])
+  endif
+
   nnoremap <buffer> <expr> . <SID>dot()
   function! s:dot() abort
     let branch = s:branch_under_cursor()
