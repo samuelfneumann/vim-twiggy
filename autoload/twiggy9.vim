@@ -126,7 +126,7 @@ g:twiggy_show_full_ui = get(g:, 'twiggy_show_full_ui', g:twiggy_enable_quickhelp
 g:twiggy_git_log_command = get(g:, 'twiggy_git_log_command', '')
 g:twiggy_refresh_buffers = get(g:, 'twiggy_refresh_buffers', true)
 g:twiggy_push_set_upstream = get(g:, 'twiggy_push_set_upstream', true)
-g:twiggy_show_vim9_indicator = get(g:, 'twiggy_show_vim9_indicator', false)
+g:twiggy_show_vim9_indicator = get(g:, 'twiggy_show_vim9_indicator', true)
 
 def ShowingFullUi(): bool
   return g:twiggy_enable_quickhelp && g:twiggy_show_full_ui
@@ -731,6 +731,7 @@ def QuickhelpView(): list<any>
   add(output, ',         rename')
   add(output, 'yy        yank <branch>')
   add(output, 'dd        delete')
+  add(output, '!dd       delete --force')
   if g:twiggy_enable_remote_delete
     add(output, 'dP          delete from server')
   endif
@@ -1299,7 +1300,7 @@ def Render()
   Mapping('Om', 'Checkout', [0, 1])
   Mapping('gc', 'CheckoutAs', [])
   Mapping('go', 'CheckoutAs', [])
-  Mapping('dd', 'Delete', [])
+  Mapping('dd', 'Delete', [1])
   Mapping('yy', 'Yank', [])
   Mapping('F', 'Fetch', [0])
   Mapping('f', 'Fetch', [0])
@@ -1333,7 +1334,8 @@ def Render()
   Mapping('a', 'ToggleSlashSort', [1])
   Mapping('ga', 'ToggleSlashSort', [0])
 
-  VisualMapping('d', 'Delete', [])
+  VisualMapping('d', 'Delete', [1])
+  VisualMapping('!d', 'ForceDelete', [])
   VisualMapping('f', 'Fetch', [0])
   VisualMapping('y', 'YankBranches', [])
   VisualMapping('P', 'Push', [0, 0, g:twiggy_push_set_upstream])
@@ -1739,6 +1741,24 @@ def Delete(confirm: bool=false): number
 	return v:shell_error
 
   endif
+enddef
+
+def ForceDelete(): number
+  var branch = BranchUnderCursor()
+
+  if branch.fullname ==# GetCurrentBranch()
+    return 0
+  endif
+
+  init_line = branch.line
+
+  if branch.is_local
+    GitCmd('branch -D ' .. branch.fullname, 0)
+  else
+    GitCmd('branch -D -r ' .. branch.fullname, 0)
+  endif
+
+  return v:shell_error
 enddef
 
 def DeleteRemote(): number
