@@ -453,14 +453,14 @@ export def GetBranches(): list<any>
     endif
   endfor
 
-  for branch_name in reflog
-    if has_key(local_refs, branch_name)
-      if g:twiggy_local_branch_sort ==# 'mru'
-        add(locals_sorted, local_refs[branch_name])
-        remove(locals, index(locals, local_refs[branch_name]))
-      endif
-    endif
-  endfor
+  if g:twiggy_local_branch_sort ==# 'mru'
+    for branch_name in reflog
+      if has_key(local_refs, branch_name)
+      	add(locals_sorted, local_refs[branch_name])
+      	remove(locals, index(locals, local_refs[branch_name]))
+        endif
+    endfor
+  endif
 
   if g:twiggy_local_branch_sort ==# 'track'
     var ahead_branches = []
@@ -576,10 +576,23 @@ def BranchesInRange(lnum1: any, lnum2: any): list<any>
 enddef
 
 def GetUniqBranchNamesFromReflog(): list<any>
-  var cmd = "awk 'FNR==NR { a[$NF]; next } $NF in a' <(" .. Gitize('branch --list') .. ') '
-  cmd ..= '<(' .. Gitize('reflog') .. " | awk -F\" \" '/checkout: moving from/ { print $8 }' | "
-  cmd ..= 'awk ' .. shellescape('!f[$0]++') .. ')'
-  return System(cmd, 0, 0)
+  var branches: list<string> = []
+  var seen: dict<bool> = {}
+
+  # Parse the reflog subject directly instead of relying on positional awk
+  # fields from human-readable output.
+  for subject in System(Gitize("log -g --grep-reflog='^checkout: moving from ' --format=%gs HEAD"), 0, 0)
+    var branch = matchstr(subject, '^checkout: moving from \S\+ to \zs\S\+$')
+    if branch ==# ''
+      continue
+    endif
+    if !has_key(seen, branch)
+      seen[branch] = true
+      add(branches, branch)
+    endif
+  endfor
+
+  return branches
 enddef
 
 def GetMergedBranches(): list<any>

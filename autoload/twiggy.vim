@@ -449,14 +449,14 @@ function! twiggy#get_branches() abort
     endif
   endfor
 
-  for branch_name in reflog
-    if has_key(local_refs, branch_name)
-      if g:twiggy_local_branch_sort ==# 'mru'
-        call add(locals_sorted, local_refs[branch_name])
-        call remove(locals, index(locals, local_refs[branch_name]))
-      endif
-    endif
-  endfor
+  if g:twiggy_local_branch_sort ==# 'mru'
+    for branch_name in reflog
+      if has_key(local_refs, branch_name)
+          call add(locals_sorted, local_refs[branch_name])
+          call remove(locals, index(locals, local_refs[branch_name]))
+        endif
+    endfor
+  endif
 
   if g:twiggy_local_branch_sort ==# 'track'
     let ahead_branches               = []
@@ -576,13 +576,24 @@ function! TwiggyBranchUnderCursor() abort
 endfunction
 
 "   {{{2 get_uniq_branch_names_from_reflog
-" http://stackoverflow.com/questions/14062402/awk-using-a-file-to-filter-another-one-out-tr
 function! s:get_uniq_branch_names_from_reflog() abort
-  let cmd = "awk 'FNR==NR { a[$NF]; next } $NF in a' <(" . s:gitize('branch --list') . ") "
-  let cmd.= "<(" . s:gitize('reflog') . " | awk -F\" \" '/checkout: moving from/ { print $8 }' | "
-  let cmd.= "awk " . shellescape('!f[$0]++') . ")"
+  let branches = []
+  let seen = {}
 
-  return s:system(cmd, 0, 0)
+  " Parse the reflog subject directly instead of relying on positional awk
+  " fields from human-readable output.
+  for subject in s:system(s:gitize("log -g --grep-reflog='^checkout: moving from ' --format=%gs HEAD"), 0, 0)
+    let branch = matchstr(subject, '^checkout: moving from \S\+ to \zs\S\+$')
+    if branch ==# ''
+      continue
+    endif
+    if !has_key(seen, branch)
+      let seen[branch] = 1
+      call add(branches, branch)
+    endif
+  endfor
+
+  return branches
 endfunction
 
 "   {{{2 get_merged_branches
