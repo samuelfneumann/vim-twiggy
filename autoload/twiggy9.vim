@@ -1159,7 +1159,7 @@ def Render()
   endif
 
   if g:twiggy_enable_quickhelp
-    nnoremap <buffer> <silent> g? :<C-U>call Quickhelp()<CR>
+    nnoremap <buffer> <silent> g? <ScriptCmd>Quickhelp()<CR>
   endif
 
   autocmd! BufWinLeave twiggy://*
