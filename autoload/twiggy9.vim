@@ -45,6 +45,11 @@ class TwiggyBranch
   public var line: number = 0
 endclass
 
+class TwiggyGroup
+  public var name: string = ''
+  public var branches: list<TwiggyBranch> = []
+endclass
+
 # -----------------------------------------------------------------------------
 # Script state
 # -----------------------------------------------------------------------------
@@ -637,10 +642,10 @@ enddef
 # UI views
 # -----------------------------------------------------------------------------
 def StandardView(): list<string>
-  var groups: dict<any> = {}
+  var groups: dict<dict<TwiggyGroup>> = {}
   groups.local = {}
   groups.remote = {}
-  var group_refs: dict<any> = {}
+  var group_refs: dict<list<TwiggyGroup>> = {}
   group_refs.local = []
   group_refs.remote = []
   init_line = 0
@@ -653,7 +658,7 @@ def StandardView(): list<string>
     endif
 
     if !has_key(groups[branch.type], branch.group)
-      groups[branch.type][branch.group] = {}
+      var group = TwiggyGroup.new()
       var group_name: string
       if branch.group ==# 'local'
         group_name = t:twiggy_git_mode ==# 'normal' ? 'local' : t:twiggy_git_mode
@@ -662,16 +667,17 @@ def StandardView(): list<string>
       else
         group_name = branch.group
       endif
-      groups[branch.type][branch.group].name = group_name
-      groups[branch.type][branch.group].branches = []
+      group.name = group_name
+      add(group.branches, branch)
+      groups[branch.type][branch.group] = group
       if branch.group ==# 'local'
-        group_refs.local = extend([groups.local.local], group_refs.local)
+        group_refs.local = extend([group], group_refs.local)
       else
-        add(group_refs[branch.type], groups[branch.type][branch.group])
+        add(group_refs[branch.type], group)
       endif
+    else
+      add(groups[branch.type][branch.group].branches, branch)
     endif
-
-    add(groups[branch.type][branch.group].branches, branch)
   endfor
 
   var output: list<string> = []
