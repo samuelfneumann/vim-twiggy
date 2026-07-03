@@ -55,6 +55,26 @@ class MappingAction
   public var args: list<any> = []
 endclass
 
+class Set
+	final elems: dict<bool>
+
+	def Add(elem: string)
+		this.elems[elem] = true
+	enddef
+
+	def Remove(elem: string): bool
+		if this.elems->has_key(elem)
+			this.elems->remove(elem)
+			return true
+		endif
+		return false
+	enddef
+
+	def Contains(elem: string): bool
+		return this.elems->has_key(elem)
+	enddef
+endclass
+
 # -----------------------------------------------------------------------------
 # Script state
 # -----------------------------------------------------------------------------
@@ -66,7 +86,7 @@ var last_output: list<string> = []
 var requires_buf_refresh = 1
 var sorted: number = 0
 var git_cmd_run: number = 0
-var worktree_branches = {} # dict<null>
+var worktree_branches: Set = Set.new()
 var total_lines: number = 0
 var branches_not_in_reflog: list<string> = []
 
@@ -311,7 +331,7 @@ def ParseBranch(branch_text: string, ref_type: string): TwiggyBranch
   if branch.current
     var git_mode = exists('t:twiggy_git_mode') ? t:twiggy_git_mode : GetGitMode()
     branch.decoration = git_mode !=# 'normal' ? icons.unmerged : icons.current
-  elseif has_key(worktree_branches, pieces[1])
+  elseif worktree_branches.Contains(pieces[1])
     branch.decoration = icons.worktree
   endif
 
@@ -436,14 +456,14 @@ def GetGitMode(): string
 enddef
 
 def UpdateWorktreeBranches(): void
-  worktree_branches = {}
+  worktree_branches = Set.new()
   var worktree_count: number = 0
   for line_ in GitCmd('worktree list --porcelain', 0)
     if line_ =~# '^worktree '
       worktree_count += 1
     elseif line_ =~# '^branch ' && worktree_count > 1
       var branchname = substitute(matchstr(line_, '^branch \zs.*'), '^refs/heads/', '', '')
-      worktree_branches[branchname] = null
+      worktree_branches.Add(branchname)
     endif
   endfor
 enddef
