@@ -292,8 +292,8 @@ enddef
 # -----------------------------------------------------------------------------
 # Branch parser
 # -----------------------------------------------------------------------------
-def ParseBranch(branch_text: any, ref_type: any): dict<any>
-  var branch = {}
+def ParseBranch(branch_text: any, ref_type: any): TwiggyBranch
+  var branch = TwiggyBranch.new()
   var pieces = split(branch_text, "\t\t", true)
 
   branch.current = pieces[0] ==# '*'
@@ -335,7 +335,7 @@ def ParseBranch(branch_text: any, ref_type: any): dict<any>
   branch.fullname = pieces[1]
 
   if ref_type ==# 'heads'
-    branch.is_local = 1
+    branch.is_local = true
     branch.type = 'local'
     if g:twiggy_group_locals_by_slash && match(branch.fullname, '/') >= 0
       var group = matchstr(branch.fullname, '\v[^/]*')
@@ -348,7 +348,7 @@ def ParseBranch(branch_text: any, ref_type: any): dict<any>
       branch.display_name = branch_marker.local .. branch.fullname
     endif
   else
-    branch.is_local = 0
+    branch.is_local = false
     branch.type = 'remote'
     var branch_split = split(branch.fullname, '/')
     branch.name = join(branch_split[1 :], '/')
@@ -365,10 +365,6 @@ def ParseBranch(branch_text: any, ref_type: any): dict<any>
     endif
   endif
 
-  if !has_key(branch, 'display_name')
-    branch.display_name = branch.name
-  endif
-
   remote_details = pieces[3]
   if pieces[4] !=# ''
     remote_details = remote_details .. ': ' .. pieces[4][1 : -2]
@@ -380,9 +376,6 @@ def ParseBranch(branch_text: any, ref_type: any): dict<any>
   branch.remote_info = pieces[4][1 : -2]
   branch.remote_details = remote_details
 
-  if empty(branch.name)
-    return {}
-  endif
   return branch
 enddef
 
@@ -397,8 +390,8 @@ def DirtyTree(): bool
   return !empty(GitCmd('diff --shortstat', 0))
 enddef
 
-def GitBranchVv(ref_type: any): list<any>
-  var branches = []
+def GitBranchVv(ref_type: any): list<TwiggyBranch>
+  var branches: list<TwiggyBranch> = []
   var format = join([
     '%(HEAD)',
     '%(refname:short)',
@@ -410,7 +403,7 @@ def GitBranchVv(ref_type: any): list<any>
 
   for branch in GitCmd('for-each-ref refs/' .. ref_type .. " --format=$'" .. format .. "'", 0)
     var parsed = ParseBranch(branch, ref_type)
-    if !empty(parsed) && !empty(parsed.name)
+    if !empty(parsed.name)
       add(branches, parsed)
     endif
   endfor
@@ -446,32 +439,32 @@ def UpdateWorktreeBranches()
   endfor
 enddef
 
-export def GetBranches(): list<any>
+export def GetBranches(): list<TwiggyBranch>
   UpdateWorktreeBranches()
   var locals = GitBranchVv('heads')
-  var locals_sorted = []
+  var locals_sorted: list<TwiggyBranch> = []
 
   var head = GitCmd('rev-parse --symbolic-full-name --abbrev-ref HEAD', 0)[0]
   if head ==# 'HEAD'
-    add(locals_sorted, {
-      decoration: icons.current .. icons.detached,
-      status: 'detached',
-      fullname: 'HEAD',
-      name: 'HEAD@' .. GitCmd('rev-parse --revs-only --short HEAD', 0)[0],
-      is_local: 1,
-      current: 1,
-      remote: GitCmd('remote', 0)[0],
-      type: 'local',
-      tracking: '',
-      details: 'detached',
-      group: 'local',
-    })
+    var detached = TwiggyBranch.new()
+    detached.decoration = icons.current .. icons.detached
+    detached.status = 'detached'
+    detached.fullname = 'HEAD'
+    detached.name = 'HEAD@' .. GitCmd('rev-parse --revs-only --short HEAD', 0)[0]
+    detached.is_local = true
+    detached.current = true
+    detached.remote = GitCmd('remote', 0)[0]
+    detached.type = 'local'
+    detached.tracking = ''
+    detached.details = 'detached'
+    detached.group = 'local'
+    add(locals_sorted, detached)
   endif
 
   var reflog = GetUniqBranchNamesFromReflog()
   branches_not_in_reflog = []
 
-  var local_refs = {}
+  var local_refs: dict<TwiggyBranch> = {}
   for local in locals
     local_refs[local.fullname] = local
     if index(reflog, local.name) < 0
@@ -527,10 +520,10 @@ export def GetBranches(): list<any>
   locals = extend(locals_sorted, locals)
 
   var remotes = GitBranchVv('remotes')
-  var remotes_sorted = []
+  var remotes_sorted: list<TwiggyBranch> = []
 
   if g:twiggy_remote_branch_sort ==# 'date'
-    var remote_refs = {}
+    var remote_refs: dict<TwiggyBranch> = {}
 
     for branch in remotes
       remote_refs[branch.fullname] = branch
@@ -576,23 +569,23 @@ def BranchExists(branch: any): bool
   return !v:shell_error
 enddef
 
-def BranchUnderCursor(): any
+def BranchUnderCursor(): TwiggyBranch
   var line_no = line('.')
   if has_key(branch_line_refs, line_no)
     return branch_line_refs[line_no]
   endif
-  return ''
+  return TwiggyBranch.new()
 enddef
 
-def g:TwiggyBranchUnderCursor(): any
+def g:TwiggyBranchUnderCursor(): TwiggyBranch
   if &ft !=# 'twiggy'
     throw 'Not in twiggy buffer'
   endif
   return BranchUnderCursor()
 enddef
 
-def BranchesInRange(lnum1: any, lnum2: any): list<any>
-  var branches = []
+def BranchesInRange(lnum1: any, lnum2: any): list<TwiggyBranch>
+  var branches: list<TwiggyBranch> = []
   for line_no in range(lnum1, lnum2)
     if has_key(branch_line_refs, line_no)
       add(branches, branch_line_refs[line_no])
@@ -637,17 +630,13 @@ def GetByCommiterDate(ref_type: any): list<any>
 enddef
 
 def UpdateLastBranchUnderCursor()
-  try
-    last_branch_under_cursor = BranchUnderCursor()
-  catch
-    return
-  endtry
+  last_branch_under_cursor = BranchUnderCursor()
 enddef
 
 # -----------------------------------------------------------------------------
 # UI views
 # -----------------------------------------------------------------------------
-def StandardView(): list<any>
+def StandardView(): list<string>
   var groups = {}
   groups.local = {}
   groups.remote = {}
@@ -700,7 +689,7 @@ def StandardView(): list<any>
       add(output, group_ref.name .. ' [' .. sort_name .. ']')
 
       for branch in group_ref.branches
-        add(output, branch.decoration .. get(branch, 'display_name', branch.name))
+        add(output, branch.decoration .. (branch.display_name !=# '' ? branch.display_name : branch.name))
         line_no += 1
         branch.line = line_no
         branch_line_refs[line_no] = branch
@@ -710,7 +699,7 @@ def StandardView(): list<any>
               sorted = 0
               init_line = branch.line
             endif
-          elseif !git_cmd_run && !empty(last_branch_under_cursor)
+          elseif !git_cmd_run && !empty(last_branch_under_cursor.fullname)
             init_line = last_branch_under_cursor.line
             git_cmd_run = 0
           else
@@ -718,7 +707,7 @@ def StandardView(): list<any>
               init_line = line_no
             elseif branch.status ==# 'detached'
               init_line = line_no
-            elseif !empty(last_branch_under_cursor)
+            elseif !empty(last_branch_under_cursor.fullname)
               init_line = last_branch_under_cursor.line
             elseif branch.current
               init_line = branch.line
@@ -828,11 +817,11 @@ def ShowBranchDetails()
   var max_len = &columns - 16
   var decor = branch_ref.decoration
   var name = branch_ref.name
-  var hash = get(branch_ref, 'hash', '')
-  var msg = get(branch_ref, 'msg', '')
-  var remote_branch = get(branch_ref, 'remote_branch', '')
-  var remote_info = get(branch_ref, 'remote_info', '')
-  var status = get(branch_ref, 'status', '')
+  var hash = branch_ref.hash
+  var msg = branch_ref.msg
+  var remote_branch = branch_ref.remote_branch
+  var remote_info = branch_ref.remote_info
+  var status = branch_ref.status
   var total_len = 8 + strcharlen(decor) + len(msg) + len(name) + len(hash) + len(remote_branch) + len(remote_info)
 
   if total_len > max_len
@@ -1707,7 +1696,7 @@ def Checkout(track: any, merge: any): number
   endif
 
   init_line = 0
-  last_branch_under_cursor = {}
+  last_branch_under_cursor = TwiggyBranch.new()
   doautocmd User TwiggyCheckout
   fugitive#ReloadStatus()
   return 0
@@ -1729,7 +1718,7 @@ def CheckoutAs(): number
     echo 'Moving from ' .. branch.name .. ' to ' .. new_name .. ellipsis
 
     init_line = 0
-    last_branch_under_cursor = {}
+    last_branch_under_cursor = TwiggyBranch.new()
 
     doautocmd User TwiggyCheckout
     fugitive#ReloadStatus()
@@ -1864,11 +1853,11 @@ enddef
 def Rebase(remote: any, autostash: any, interactive: any): number
   var branch = BranchUnderCursor()
   var gitcmd = autostash ? 'rebase --autostash ' : 'rebase '
-  var dispatch_opts = {}
+  var dispatch_opts = DispatchOpts.new()
 
   if interactive
     gitcmd ..= '-i '
-    dispatch_opts.no_dispatch = 1
+    dispatch_opts.no_dispatch = true
   endif
 
   if remote
