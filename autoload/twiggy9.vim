@@ -72,36 +72,36 @@ var branch_marker_vmagic = {
 # -----------------------------------------------------------------------------
 # Utility
 # -----------------------------------------------------------------------------
-def Buffocus(bufnr_: any)
+def Buffocus(bufnr_: number)
   var switchbuf_cached = &switchbuf
   set switchbuf=useopen
   execute 'sb ' .. bufnr_
   execute 'set switchbuf=' .. switchbuf_cached
 enddef
 
-def Sub(str_: any, pat: any, rep: any): string
+def Sub(str_: string, pat: string, rep: string): string
   return substitute(str_, '\v\C' .. pat, rep, '')
 enddef
 
-def Gsub(str_: any, pat: any, rep: any): string
+def Gsub(str_: string, pat: string, rep: string): string
   return substitute(str_, '\v\C' .. pat, rep, 'g')
 enddef
 
-def Fexists(file: any): bool
+def Fexists(file: string): bool
   return !empty(glob(file))
 enddef
 
-def EncodeMapping(mapping: any): string
+def EncodeMapping(mapping: string): string
   return Sub(mapping, '\v^\<', '___')
 enddef
 
-def Mapping(mapping: any, fn: any, args: any)
+def Mapping(mapping: string, fn: string, args: list<any>)
   mappings[EncodeMapping(mapping)] = [fn, args]
   execute 'nnoremap <buffer> <silent> ' .. mapping
       .. ' <ScriptCmd>CallMapping(''' .. EncodeMapping(mapping) .. ''')<CR>'
 enddef
 
-def VisualMapping(mapping: any, fn: any, args: any)
+def VisualMapping(mapping: string, fn: string, args: list<any>)
   execute 'xnoremap <buffer> <silent> ' .. mapping
       .. ' <ScriptCmd>VisualCall(''' .. fn .. ''', ' .. string(args) .. ')<CR>'
 enddef
@@ -168,7 +168,7 @@ enddef
 # -----------------------------------------------------------------------------
 # System / Git command helpers
 # -----------------------------------------------------------------------------
-def System(cmd: any, bg: any, dispatch_opts: DispatchOpts = DispatchOpts.new()): list<string>
+def System(cmd: string, bg: bool, dispatch_opts: DispatchOpts = DispatchOpts.new()): list<string>
   var command = cmd
 
   if bg
@@ -202,7 +202,7 @@ def AttnMode(): bool
   return false
 enddef
 
-def Gitize(cmd: any): string
+def Gitize(cmd: string): string
   var git_cmd: string
   if exists('t:twiggy_bufnr') && t:twiggy_bufnr == bufnr('')
     git_cmd = t:twiggy_git_cmd
@@ -212,7 +212,7 @@ def Gitize(cmd: any): string
   return git_cmd .. ' ' .. cmd
 enddef
 
-def GitCmd(cmd: any, bg: any, dispatch_opts: DispatchOpts = DispatchOpts.new()): list<string>
+def GitCmd(cmd: string, bg: bool, dispatch_opts: DispatchOpts = DispatchOpts.new()): list<string>
   var full_cmd = Gitize(cmd)
   git_cmd_run = 1
   if bg
@@ -224,7 +224,7 @@ def GitCmd(cmd: any, bg: any, dispatch_opts: DispatchOpts = DispatchOpts.new()):
   return []
 enddef
 
-def CallMapping(mapping: any)
+def CallMapping(mapping: string)
   var key = EncodeMapping(mapping)
   var deprecated_mappings = {
     'F': 'f',
@@ -254,7 +254,7 @@ def CallMapping(mapping: any)
   endif
 enddef
 
-def VisualCall(fn: any, args: any)
+def VisualCall(fn: string, args: list<any>)
   var lnum1 = min([line('v'), line('.')])
   var lnum2 = max([line('v'), line('.')])
   execute "normal! \<Esc>"
@@ -292,7 +292,7 @@ enddef
 # -----------------------------------------------------------------------------
 # Branch parser
 # -----------------------------------------------------------------------------
-def ParseBranch(branch_text: any, ref_type: any): TwiggyBranch
+def ParseBranch(branch_text: string, ref_type: string): TwiggyBranch
   var branch = TwiggyBranch.new()
   var pieces = split(branch_text, "\t\t", true)
 
@@ -390,7 +390,7 @@ def DirtyTree(): bool
   return !empty(GitCmd('diff --shortstat', 0))
 enddef
 
-def GitBranchVv(ref_type: any): list<TwiggyBranch>
+def GitBranchVv(ref_type: string): list<TwiggyBranch>
   var branches: list<TwiggyBranch> = []
   var format = join([
     '%(HEAD)',
@@ -564,7 +564,7 @@ def GetCurrentBranchRemotePush(): string
   return remote[0]
 enddef
 
-def BranchExists(branch: any): bool
+def BranchExists(branch: string): bool
   GitCmd('show-ref --verify --quiet refs/heads/' .. branch, 0)
   return !v:shell_error
 enddef
@@ -584,7 +584,7 @@ def g:TwiggyBranchUnderCursor(): TwiggyBranch
   return BranchUnderCursor()
 enddef
 
-def BranchesInRange(lnum1: any, lnum2: any): list<TwiggyBranch>
+def BranchesInRange(lnum1: number, lnum2: number): list<TwiggyBranch>
   var branches: list<TwiggyBranch> = []
   for line_no in range(lnum1, lnum2)
     if has_key(branch_line_refs, line_no)
@@ -594,7 +594,7 @@ def BranchesInRange(lnum1: any, lnum2: any): list<TwiggyBranch>
   return branches
 enddef
 
-def GetUniqBranchNamesFromReflog(): list<any>
+def GetUniqBranchNamesFromReflog(): list<string>
   var branches: list<string> = []
   var seen: dict<bool> = {}
 
@@ -614,13 +614,13 @@ def GetUniqBranchNamesFromReflog(): list<any>
   return branches
 enddef
 
-def GetMergedBranches(): list<any>
+def GetMergedBranches(): list<string>
   # Preserves the original function's behavior, although this does not appear
   # to be used elsewhere in the file.
   return map(GitCmd('branch --list --merged', 0), (_, _) => "\n")
 enddef
 
-def GetByCommiterDate(ref_type: any): list<any>
+def GetByCommiterDate(ref_type: string): list<string>
   var cmd = Gitize(
     "for-each-ref --sort=-committerdate --format='%(refname)' "
       .. 'refs/' .. ref_type .. " | sed 's/refs\\/"
@@ -721,7 +721,7 @@ def StandardView(): list<string>
   return output
 enddef
 
-def QuickhelpView(): list<any>
+def QuickhelpView(): list<string>
   var output = []
   add(output, 'Twiggy Quickhelp')
   add(output, '===========================')
@@ -946,7 +946,7 @@ export def CloseOutputBuffer()
   endfor
 enddef
 
-def Confirm(prompt: any, cmd: any, can_abort: any): number
+def Confirm(prompt: string, cmd: string, can_abort: bool): number
   redraw
   echohl WarningMsg
   echo prompt .. ' [Yn' .. (can_abort ? 'a' : '') .. ']'
@@ -964,7 +964,7 @@ def Confirm(prompt: any, cmd: any, can_abort: any): number
   return 0
 enddef
 
-def PromptToStash(): any
+def PromptToStash(): number
   return Confirm('Working tree is dirty.  Stash first?', "GitCmd('stash', 0)", 1)
 enddef
 
@@ -981,7 +981,7 @@ enddef
 # -----------------------------------------------------------------------------
 # Navigation
 # -----------------------------------------------------------------------------
-def TraverseBranches(motion: any, count: any = 1)
+def TraverseBranches(motion: string, count: number = 1)
   for _ in range(count)
     execute 'normal! ' .. motion
     var current_line = line('.')
@@ -999,7 +999,7 @@ def TraverseBranches(motion: any, count: any = 1)
   endfor
 enddef
 
-def TraverseGroups(motion: any, end_: any = 0, count: any = 1)
+def TraverseGroups(motion: string, end_: bool = false, count: number = 1)
   for _ in range(count)
     if motion ==# 'j'
       if end_
@@ -1067,7 +1067,7 @@ enddef
 # Syntax helpers moved out of Render() because Vim9 def functions cannot safely
 # define nested functions in the same legacy style.
 # -----------------------------------------------------------------------------
-def RenderRemote(conceal_remote: any, remote: any, remote_type: any)
+def RenderRemote(conceal_remote: bool, remote: string, remote_type: string)
   if conceal_remote && !empty(remote)
     var parts = split(remote, '/')
     var prefix: string
@@ -1094,7 +1094,7 @@ def RenderRemote(conceal_remote: any, remote: any, remote_type: any)
   endif
 enddef
 
-def RenderBranches(current: any, upstream: any, push: any, conceal_local: any, conceal_remote: any)
+def RenderBranches(current: string, upstream: string, push: string, conceal_local: bool, conceal_remote: bool)
   syntax clear TwiggyPrivateBranchCurrentName
   syntax clear TwiggyPrivateBranchCurrentUpstreamName
   syntax clear TwiggyPrivateBranchCurrentPushName TwiggyPush
@@ -1607,7 +1607,7 @@ enddef
 # -----------------------------------------------------------------------------
 # Sorting
 # -----------------------------------------------------------------------------
-def SortBranches(branch_type: any, int_: any)
+def SortBranches(branch_type: string, int_: number)
   var sorts = get(g:, 'twiggy_' .. branch_type .. '_branch_sorts')
   var sort_name = get(g:, 'twiggy_' .. branch_type .. '_branch_sort')
   var max_index = len(sorts) - int_
@@ -1620,7 +1620,7 @@ def SortBranches(branch_type: any, int_: any)
   g:['twiggy_' .. branch_type .. '_branch_sort'] = get(g:, 'twiggy_' .. branch_type .. '_branch_sorts')[new_index]
 enddef
 
-def CycleSort(alt: any, int_: any): number
+def CycleSort(alt: bool, int_: number): number
   var local = BranchUnderCursor().is_local
   requires_buf_refresh = 0
 
@@ -1634,7 +1634,7 @@ def CycleSort(alt: any, int_: any): number
   return 0
 enddef
 
-def ToggleSlashSort(local: any): number
+def ToggleSlashSort(local: bool): number
   if local
     g:twiggy_group_locals_by_slash = g:twiggy_group_locals_by_slash ? 0 : 1
   else
@@ -1659,7 +1659,7 @@ def ShowDirtyTreeOnCheckoutMessage(): void
   RenderOutputBuffer()
 enddef
 
-def Checkout(track: any, merge: any): number
+def Checkout(track: bool, merge: bool): number
   var current_branch = GetCurrentBranch()
   var switch_branch = BranchUnderCursor()
   var merge_opt = merge ? ' --merge ' : ''
@@ -1734,7 +1734,7 @@ def Yank()
   setreg(reg, branch.fullname)
 enddef
 
-def YankBranches(lnum1: any, lnum2: any)
+def YankBranches(lnum1: number, lnum2: number)
   var branches = BranchesInRange(lnum1, lnum2)
   var reg = empty(v:register) ? '"' : v:register
   setreg(reg, join(map(copy(branches), (_, val) => val.fullname), "\n"))
@@ -1810,7 +1810,7 @@ def DeleteRemote(): number
     "GitCmd('push --delete " .. group .. ' ' .. name .. "', 0)[0]", 0)
 enddef
 
-def Fetch(pull: any): number
+def Fetch(pull: bool): number
   var cmd = pull ? 'pull' : 'fetch'
   var branch = BranchUnderCursor()
   if branch.tracking !=# ''
@@ -1828,7 +1828,7 @@ def Pull(): number
   return Fetch(1)
 enddef
 
-def Merge(remote: any, flags: any): number
+def Merge(remote: bool, flags: string): number
   var branch = BranchUnderCursor()
 
   if remote
@@ -1850,7 +1850,7 @@ def Merge(remote: any, flags: any): number
   return 0
 enddef
 
-def Rebase(remote: any, autostash: any, interactive: any): number
+def Rebase(remote: bool, autostash: bool, interactive: bool): number
   var branch = BranchUnderCursor()
   var gitcmd = autostash ? 'rebase --autostash ' : 'rebase '
   var dispatch_opts = DispatchOpts.new()
@@ -1879,7 +1879,7 @@ def Rebase(remote: any, autostash: any, interactive: any): number
   return 0
 enddef
 
-def Continue(git_type: any): number
+def Continue(git_type: string): number
   if git_type ==? 'stash'
     ContinueStash()
   else
@@ -1902,7 +1902,7 @@ def Skip(): number
   return 0
 enddef
 
-def Abort(git_type: any): number
+def Abort(git_type: string): number
   if git_type ==? 'stash'
     AbortStash()
   else
@@ -1925,7 +1925,7 @@ def AbortStash()
   GitCmd('reset --merge', 0)
 enddef
 
-def Push(choose_upstream: any, force: any, set_upstream: any): number
+def Push(choose_upstream: bool, force: bool, set_upstream: bool): number
   var branch = BranchUnderCursor()
 
   if !branch.is_local
@@ -1984,7 +1984,7 @@ def Push(choose_upstream: any, force: any, set_upstream: any): number
   return 0
 enddef
 
-def g:TwiggyCompleteRemotes(A: any, L: any, P: any): string
+def g:TwiggyCompleteRemotes(A: string, L: string, P: string): string
   var remotes = ''
   for remote in GitCmd('remote', 0)
     if match(remote, '\v^' .. A) >= 0
@@ -2008,7 +2008,7 @@ def Rename(): number
   return 0
 enddef
 
-def Stash(pop: any): number
+def Stash(pop: bool): number
   var pop_arg = pop ? ' pop' : ''
   GitCmd('stash' .. pop_arg, 0)
 
