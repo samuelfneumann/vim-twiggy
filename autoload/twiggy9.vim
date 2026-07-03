@@ -600,7 +600,7 @@ def GetUniqBranchNamesFromReflog(): list<any>
 
   # Parse the reflog subject directly instead of relying on positional awk
   # fields from human-readable output.
-  for subject in System(Gitize("log -g --grep-reflog='^checkout: moving from ' --format=%gs HEAD"), 0, 0)
+  for subject in System(Gitize("log -g --grep-reflog='^checkout: moving from ' --format=%gs HEAD"), 0)
     var branch = matchstr(subject, '^checkout: moving from \S\+ to \zs\S\+$')
     if branch ==# ''
       continue
