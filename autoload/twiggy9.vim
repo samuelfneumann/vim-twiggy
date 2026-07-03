@@ -19,13 +19,39 @@ highlight default link TwiggyPrivateBranchCurrentPrefix NonText
 
 highlight default link TwiggyCommitMsg Normal
 
+class DispatchOpts
+  public var no_dispatch: bool = false
+  public var use_start: bool = false
+endclass
+
+class TwiggyBranch
+  public var current: bool = false
+  public var decoration: string = ' '
+  public var tracking: string = ''
+  public var remote: string = ''
+  public var status: string = ''
+  public var fullname: string = ''
+  public var is_local: bool = false
+  public var type: string = ''
+  public var group: string = ''
+  public var name: string = ''
+  public var display_name: string = ''
+  public var hash: string = ''
+  public var msg: string = ''
+  public var remote_branch: string = ''
+  public var remote_info: string = ''
+  public var remote_details: string = ''
+  public var details: string = ''
+  public var line: number = 0
+endclass
+
 # -----------------------------------------------------------------------------
 # Script state
 # -----------------------------------------------------------------------------
 var init_line = 0
 var mappings = {}
-var branch_line_refs = {}
-var last_branch_under_cursor = {}
+var branch_line_refs: dict<TwiggyBranch> = {}
+var last_branch_under_cursor: TwiggyBranch = TwiggyBranch.new()
 var last_output = []
 var requires_buf_refresh = 1
 var sorted = 0
@@ -142,14 +168,14 @@ enddef
 # -----------------------------------------------------------------------------
 # System / Git command helpers
 # -----------------------------------------------------------------------------
-def System(cmd: any, bg: any, dispatch_opts: any = {}): list<string>
+def System(cmd: any, bg: any, dispatch_opts: DispatchOpts = DispatchOpts.new()): list<string>
   var command = cmd
 
   if bg
     if exists('g:loaded_dispatch') && g:loaded_dispatch && g:twiggy_use_dispatch
-      if has_key(dispatch_opts, 'no_dispatch') && dispatch_opts.no_dispatch
+      if dispatch_opts.no_dispatch
         execute ':!' .. command
-      elseif has_key(dispatch_opts, 'use_start') && dispatch_opts.use_start
+      elseif dispatch_opts.use_start
         execute ':Start ' .. command
       else
         execute ':Dispatch ' .. command
@@ -186,7 +212,7 @@ def Gitize(cmd: any): string
   return git_cmd .. ' ' .. cmd
 enddef
 
-def GitCmd(cmd: any, bg: any, dispatch_opts: any = {}): list<string>
+def GitCmd(cmd: any, bg: any, dispatch_opts: DispatchOpts = DispatchOpts.new()): list<string>
   var full_cmd = Gitize(cmd)
   git_cmd_run = 1
   if bg
@@ -1868,7 +1894,9 @@ def Continue(git_type: any): number
   if git_type ==? 'stash'
     ContinueStash()
   else
-    GitCmd(git_type .. ' --continue', 1, {no_dispatch: 1})
+    var dispatch_opts = DispatchOpts.new()
+    dispatch_opts.no_dispatch = true
+    GitCmd(git_type .. ' --continue', 1, dispatch_opts)
   endif
 
   redraw
@@ -1877,7 +1905,9 @@ def Continue(git_type: any): number
 enddef
 
 def Skip(): number
-  GitCmd('rebase --skip', 1, {no_dispatch: 1})
+  var dispatch_opts = DispatchOpts.new()
+  dispatch_opts.no_dispatch = true
+  GitCmd('rebase --skip', 1, dispatch_opts)
   redraw
   fugitive#ReloadStatus()
   return 0
@@ -1897,7 +1927,9 @@ def Abort(git_type: any): number
 enddef
 
 def ContinueStash()
-  GitCmd('commit', 1, {no_dispatch: 1})
+  var dispatch_opts = DispatchOpts.new()
+  dispatch_opts.no_dispatch = true
+  GitCmd('commit', 1, dispatch_opts)
 enddef
 
 def AbortStash()
