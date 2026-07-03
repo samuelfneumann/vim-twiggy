@@ -626,7 +626,7 @@ def GetByCommiterDate(ref_type: any): list<any>
       .. 'refs/' .. ref_type .. " | sed 's/refs\\/"
       .. Sub(ref_type, '/', '\\/') .. "\\///g'"
   )
-  return System(cmd, 0, 0)
+  return System(cmd, 0)
 enddef
 
 def UpdateLastBranchUnderCursor()
