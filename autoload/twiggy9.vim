@@ -50,11 +50,16 @@ class TwiggyGroup
   public var branches: list<TwiggyBranch> = []
 endclass
 
+class MappingAction
+  public var fn: string = ''
+  public var args: list<any> = []
+endclass
+
 # -----------------------------------------------------------------------------
 # Script state
 # -----------------------------------------------------------------------------
 var init_line: number = 0
-var mappings: dict<any> = {}
+var mappings: dict<MappingAction> = {}
 var branch_line_refs: dict<TwiggyBranch> = {}
 var last_branch_under_cursor: TwiggyBranch = TwiggyBranch.new()
 var last_output: list<string> = []
@@ -101,7 +106,10 @@ def EncodeMapping(mapping: string): string
 enddef
 
 def Mapping(mapping: string, fn: string, args: list<any>): void
-  mappings[EncodeMapping(mapping)] = [fn, args]
+  var action = MappingAction.new()
+  action.fn = fn
+  action.args = args
+  mappings[EncodeMapping(mapping)] = action
   execute 'nnoremap <buffer> <silent> ' .. mapping
       .. ' <ScriptCmd>CallMapping(''' .. EncodeMapping(mapping) .. ''')<CR>'
 enddef
@@ -245,7 +253,9 @@ def CallMapping(mapping: string): void
         .. 'Use `' .. deprecated_mappings[encoded_mapping] .. '` instead.'
   endif
 
-  if call(mappings[key][0], mappings[key][1])
+  var action = mappings[key]
+
+  if call(action.fn, action.args)
     ErrorMsg()
   else
     Render()
