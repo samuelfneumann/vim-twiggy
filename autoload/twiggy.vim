@@ -198,13 +198,7 @@ endfunction
 "   {{{2 call
 function! s:call(mapping) abort
   let key = s:encode_mapping(a:mapping)
-  let deprecated_mappings = {
-        \ 'F': 'f',
-        \ '^': 'P',
-        \ 'g^': 'gP',
-        \ '!^': '!P',
-        \ 'd^': 'dP'
-        \ }
+  let deprecated_mappings = {}
   let encoded_mapping = s:encode_mapping(a:mapping)
   if has_key(deprecated_mappings, encoded_mapping)
     let t:twiggy_deprecation_notice = "WARNING: `".a:mapping
@@ -1298,9 +1292,6 @@ function! s:Render() abort
   call s:mapping('gR',      'Rebase',           [1, 1, 0])
   call s:mapping('gri',     'Rebase',           [0, 1, 1])
   call s:mapping('gRi',     'Rebase',           [1, 1, 1])
-  call s:mapping('^',       'Push',             [0, 0, 1]) " deprecated
-  call s:mapping('g^',      'Push',             [1, 0, 1]) " deprecated 
-  call s:mapping('!^',      'Push',             [0, 1, 1]) " deprecated
   call s:mapping('P',       'Push',             [0, 0, g:twiggy_push_set_upstream])
   call s:mapping('gP',      'Push',             [1, 0, g:twiggy_push_set_upstream])
   call s:mapping('!P',      'Push',             [0, 1, g:twiggy_push_set_upstream])

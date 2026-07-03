@@ -239,13 +239,7 @@ enddef
 
 def CallMapping(mapping: string): void
   var key = EncodeMapping(mapping)
-  var deprecated_mappings = {
-    'F': 'f',
-	'^': 'P',
-    'g^': 'gP',
-    '!^': '!P',
-    'd^': 'dP',
-  }
+  var deprecated_mappings = {}
   var encoded_mapping = EncodeMapping(mapping)
   if has_key(deprecated_mappings, encoded_mapping)
     t:twiggy_deprecation_notice = 'WARNING: `' .. mapping
@@ -1352,7 +1346,6 @@ def Render(): void
   Mapping('go', 'CheckoutAs', [])
   Mapping('dd', 'Delete', [1])
   Mapping('yy', 'Yank', [])
-  Mapping('F', 'Fetch', [0])
   Mapping('f', 'Fetch', [0])
   Mapping('m', 'Merge', [0, ''])
   Mapping('M', 'Merge', [1, ''])
@@ -1367,9 +1360,6 @@ def Render(): void
   Mapping('gR', 'Rebase', [1, 1, 0])
   Mapping('gri', 'Rebase', [0, 1, 1])
   Mapping('gRi', 'Rebase', [1, 1, 1])
-  Mapping('^', 'Push', [0, 0, 1])
-  Mapping('g^', 'Push', [1, 0, 1])
-  Mapping('!^', 'Push', [0, 1, 1])
   Mapping('P', 'Push', [0, 0, g:twiggy_push_set_upstream])
   Mapping('gP', 'Push', [1, 0, g:twiggy_push_set_upstream])
   Mapping('!P', 'Push', [0, 1, g:twiggy_push_set_upstream])
