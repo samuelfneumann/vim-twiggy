@@ -2060,4 +2060,4 @@ autocmd BufEnter twiggy://* execute 'command! -buffer Git ' .. CloseString() .. 
 autocmd BufEnter twiggy://* execute 'command! -buffer Git commit ' .. CloseString() .. ' | silent <Cmd>Git commit<CR>'
 autocmd BufEnter twiggy://* execute 'command! -buffer Git blame  ' .. CloseString() .. ' | silent <Cmd>Git blame<CR>'
 
-command! TwiggyRefresh call <ScriptCmd>Refresh()
+command! TwiggyRefresh Refresh()
