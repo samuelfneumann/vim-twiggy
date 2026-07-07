@@ -50,5 +50,5 @@ function! TwiggyCompleteBranches(A,L,P) abort
 endfunction
 
 command -nargs=* -complete=custom,TwiggyComplete Twiggy if UseVim9() | call twiggy9#Main(<f-args>) | else | call twiggy#Main(<f-args>) | endif
-command -nargs=* -complete=custom,TwiggyComplete T call if UseVim9() | call twiggy9#Main(<f-args>) | else | call twiggy#Main(<f-args>) | endif
+command -nargs=* -complete=custom,TwiggyComplete T if UseVim9() | call twiggy9#Main(<f-args>) | else | call twiggy#Main(<f-args>) | endif
 command CloseTwiggyOutput if UseVim9() | call twiggy9#CloseOutputBuffer() | else | call twiggy#CloseOutputBuffer() | endif
