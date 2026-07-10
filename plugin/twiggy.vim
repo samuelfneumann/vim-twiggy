@@ -9,7 +9,7 @@ endif
 let g:loaded_twiggy = 1
 
 function! UseVim9()
-  return get(g:, 'twiggy_use_vim9', has('vim9script'))
+  return get(g:, 'twiggy_use_vim9', has('vim9script'))  " For testing/debugging
 endfunction
 
 function! TwiggyComplete(A,L,P) abort

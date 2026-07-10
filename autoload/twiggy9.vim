@@ -192,7 +192,7 @@ g:twiggy_show_full_ui = get(g:, 'twiggy_show_full_ui', g:twiggy_enable_quickhelp
 g:twiggy_git_log_command = get(g:, 'twiggy_git_log_command', '')
 g:twiggy_refresh_buffers = get(g:, 'twiggy_refresh_buffers', true)
 g:twiggy_push_set_upstream = get(g:, 'twiggy_push_set_upstream', true)
-g:twiggy_show_vim9_indicator = get(g:, 'twiggy_show_vim9_indicator', true)
+g:twiggy_show_vim9_indicator = get(g:, 'twiggy_show_vim9_indicator', false)  # Strictly for testing/debugging
 
 def ShowingFullUi(): bool
   return g:twiggy_enable_quickhelp && g:twiggy_show_full_ui
