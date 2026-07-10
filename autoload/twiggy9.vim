@@ -269,7 +269,7 @@ def CallMapping(mapping: string): void
 
   var action = mappings[key]
 
-  if call(action.fn, action.args)
+  if !call(action.fn, action.args)
     ErrorMsg()
   else
     Render()
@@ -302,7 +302,7 @@ def VisualCall(fn: string, args: list<any>): void
   var failed = false
   for branch in branches
     cursor(branch.line, 1)
-    if call(fn, args)
+    if !call(fn, args)
       failed = true
     endif
   endfor
@@ -976,7 +976,7 @@ export def CloseOutputBuffer(): void
   endfor
 enddef
 
-def Confirm(prompt: string, cmd: string, can_abort: bool): number
+def Confirm(prompt: string, cmd: string, can_abort: bool): bool
   redraw
   echohl WarningMsg
   echo prompt .. ' [Yn' .. (can_abort ? 'a' : '') .. ']'
@@ -984,18 +984,17 @@ def Confirm(prompt: string, cmd: string, can_abort: bool): number
 
   var input_char = nr2char(getchar())
   if index(['a', "\<esc>"], input_char) >= 0 && can_abort
-    return -1
+    return false
   elseif index(['Y', 'y', "\<cr>"], input_char) >= 0
-    execute 'return ' .. cmd
+    execute cmd
+    return v:shell_error == 0
   else
-    return -1
+    return false
   endif
-
-  return 0
 enddef
 
-def PromptToStash(): number
-  return Confirm('Working tree is dirty.  Stash first?', "GitCmd('stash', 0)", 1)
+def PromptToStash(): bool
+  return Confirm('Working tree is dirty.  Stash first?', "GitCmd('stash', 0)", true)
 enddef
 
 def ErrorMsg(): void
@@ -1539,9 +1538,9 @@ def Quickhelp(): void
   endif
 enddef
 
-def Refresh(): number
+def Refresh(): bool
   if exists('t:refreshing') || !exists('t:twiggy_bufnr') || (!exists('t:twiggy_git_dir') && !exists('b:git_dir'))
-    return 0
+    return true
   endif
 
   t:refreshing = 1
@@ -1576,7 +1575,7 @@ def Refresh(): number
   endif
 
   unlet t:refreshing
-  return 0
+  return true
 enddef
 
 export def Main(...args: list<any>): void
@@ -1646,7 +1645,7 @@ def SortBranches(branch_type: string, int_: number): void
   g:['twiggy_' .. branch_type .. '_branch_sort'] = get(g:, 'twiggy_' .. branch_type .. '_branch_sorts')[new_index]
 enddef
 
-def CycleSort(alt: bool, int_: number): number
+def CycleSort(alt: bool, int_: number): bool
   var local = BranchUnderCursor().is_local
   requires_buf_refresh = 0
 
@@ -1657,16 +1656,16 @@ def CycleSort(alt: bool, int_: number): number
   endif
 
   sorted = 1
-  return 0
+  return true
 enddef
 
-def ToggleSlashSort(local: bool): number
+def ToggleSlashSort(local: bool): bool
   if local
     g:twiggy_group_locals_by_slash = g:twiggy_group_locals_by_slash ? 0 : 1
   else
     g:twiggy_group_remotes_by_slash = g:twiggy_group_remotes_by_slash ? 0 : 1
   endif
-  return 0
+  return true
 enddef
 
 # -----------------------------------------------------------------------------
@@ -1685,19 +1684,19 @@ def ShowDirtyTreeOnCheckoutMessage(): void
   RenderOutputBuffer()
 enddef
 
-def Checkout(track: bool, merge: bool): number
+def Checkout(track: bool, merge: bool): bool
   var current_branch = GetCurrentBranch()
   var switch_branch = BranchUnderCursor()
   var merge_opt = merge ? ' --merge ' : ''
 
   if DirtyTree() && !merge
     ShowDirtyTreeOnCheckoutMessage()
-    return 1
+    return false
   endif
 
   if track && current_branch ==# switch_branch.fullname
     echo 'Already on ' .. current_branch
-    return 1
+    return false
   else
     redraw
     echo 'Moving from ' .. current_branch .. ' to ' .. switch_branch.fullname .. ellipsis
@@ -1715,9 +1714,9 @@ def Checkout(track: bool, merge: bool): number
       GitCmd('switch ' .. merge_opt .. switch_branch.fullname, 0)
     endif
 
-    if v:shell_error
+    if v:shell_error != 0
       RenderOutputBuffer()
-      return 1
+      return false
     endif
   endif
 
@@ -1725,10 +1724,10 @@ def Checkout(track: bool, merge: bool): number
   last_branch_under_cursor = TwiggyBranch.new()
   doautocmd User TwiggyCheckout
   fugitive#ReloadStatus()
-  return 0
+  return true
 enddef
 
-def CheckoutAs(): number
+def CheckoutAs(): bool
   var branch = BranchUnderCursor()
 
   redraw
@@ -1737,27 +1736,33 @@ def CheckoutAs(): number
     if new_name ==# branch.name
       redraw
       echo branch.name .. ' already exists.'
-      return 1
+      return false
     endif
     GitCmd('switch -c ' .. new_name .. ' ' .. branch.fullname, 0)
     redraw
     echo 'Moving from ' .. branch.name .. ' to ' .. new_name .. ellipsis
+
+    if v:shell_error != 0
+      RenderOutputBuffer()
+      return false
+    endif
 
     init_line = 0
     last_branch_under_cursor = TwiggyBranch.new()
 
     doautocmd User TwiggyCheckout
     fugitive#ReloadStatus()
-    return 0
+    return true
   endif
 
-  return 1
+  return false
 enddef
 
-def Yank(): void
+def Yank(): bool
   var branch = BranchUnderCursor()
   var reg = empty(v:register) ? '"' : v:register
   setreg(reg, branch.fullname)
+  return true
 enddef
 
 def YankBranches(lnum1: number, lnum2: number): void
@@ -1766,11 +1771,11 @@ def YankBranches(lnum1: number, lnum2: number): void
   setreg(reg, join(map(copy(branches), (_, val) => val.fullname), "\n"))
 enddef
 
-def Delete(confirm: bool=false): number
+def Delete(confirm: bool=false): bool
   var branch = BranchUnderCursor()
 
   if branch.fullname ==# GetCurrentBranch()
-    return 0
+    return true
   endif
 
   init_line = branch.line
@@ -1778,31 +1783,31 @@ def Delete(confirm: bool=false): number
   if branch.is_local
     GitCmd('branch -d ' .. branch.fullname, 0)
 
-    if v:shell_error && confirm
+    if v:shell_error != 0 && confirm
       last_output = []
       return Confirm('Unmerged!  Force-delete local branch ' .. branch.fullname .. '?',
-        "GitCmd('branch -D " .. branch.fullname .. "', 0)[0]", 0)
+        "GitCmd('branch -D " .. branch.fullname .. "', 0)", false)
 	endif
-	return v:shell_error
+	return v:shell_error == 0
 
   else
 	if confirm
         last_output = []
 		return Confirm('Force-delete remote branch ' .. branch.fullname .. '?',
-		  "GitCmd('branch -d -r " .. branch.fullname .. "', 0)[0]", 0)
+		  "GitCmd('branch -d -r " .. branch.fullname .. "', 0)", false)
 	else
 		GitCmd('branch -d -r ' .. branch.fullname, 0)
 	endif
-	return v:shell_error
+	return v:shell_error == 0
 
   endif
 enddef
 
-def ForceDelete(): number
+def ForceDelete(): bool
   var branch = BranchUnderCursor()
 
   if branch.fullname ==# GetCurrentBranch()
-    return 0
+    return true
   endif
 
   init_line = branch.line
@@ -1813,10 +1818,10 @@ def ForceDelete(): number
     GitCmd('branch -D -r ' .. branch.fullname, 0)
   endif
 
-  return v:shell_error
+  return v:shell_error == 0
 enddef
 
-def DeleteRemote(): number
+def DeleteRemote(): bool
   var branch = BranchUnderCursor()
   var group: string
   var name: string
@@ -1824,7 +1829,7 @@ def DeleteRemote(): number
     if branch.tracking ==# ''
       redraw
       echo branch.fullname .. ' has no tracking branch'
-      return 1
+      return false
     endif
     group = branch.remote
     name = Sub(branch.tracking, group .. '/', '')
@@ -1833,10 +1838,10 @@ def DeleteRemote(): number
     name = branch.name
   endif
   return Confirm('WARNING! Delete branch ' .. name .. ' from remote repo: ' .. group .. '?',
-    "GitCmd('push --delete " .. group .. ' ' .. name .. "', 0)[0]", 0)
+    "GitCmd('push --delete " .. group .. ' ' .. name .. "', 0)", false)
 enddef
 
-def Fetch(pull: bool): number
+def Fetch(pull: bool): bool
   var cmd = pull ? 'pull' : 'fetch'
   var branch = BranchUnderCursor()
   if branch.tracking !=# ''
@@ -1845,38 +1850,38 @@ def Fetch(pull: bool): number
   else
     redraw
     echo branch.name .. ' is not a tracking branch'
-    return 1
+    return false
   endif
-  return 0
+  return true
 enddef
 
-def Pull(): number
+def Pull(): bool
   return Fetch(1)
 enddef
 
-def Merge(remote: bool, flags: string): number
+def Merge(remote: bool, flags: string): bool
   var branch = BranchUnderCursor()
 
   if remote
     if branch.tracking ==# ''
       v:warningmsg = 'No tracking branch for ' .. branch.fullname
-      return 1
+      return false
     else
       GitCmd('merge ' .. flags .. '  ' .. branch.tracking, 1)
     endif
   else
     if branch.name ==# GetCurrentBranch()
       v:warningmsg = 'Can''t merge into self'
-      return 1
+      return false
     else
       GitCmd('merge ' .. flags .. '  ' .. branch.fullname, 1)
     endif
   endif
 
-  return 0
+  return true
 enddef
 
-def Rebase(remote: bool, autostash: bool, interactive: bool): number
+def Rebase(remote: bool, autostash: bool, interactive: bool): bool
   var branch = BranchUnderCursor()
   var gitcmd = autostash ? 'rebase --autostash ' : 'rebase '
   var dispatch_opts = DispatchOpts.new()
@@ -1889,23 +1894,23 @@ def Rebase(remote: bool, autostash: bool, interactive: bool): number
   if remote
     if branch.tracking ==# ''
       v:warningmsg = 'No tracking branch for ' .. branch.name
-      return 1
+      return false
     else
       GitCmd(gitcmd .. ' ' .. branch.tracking, 1, dispatch_opts)
     endif
   else
     if branch.fullname ==# GetCurrentBranch()
       v:warningmsg = 'Can''t rebase off of self'
-      return 1
+      return false
     else
       GitCmd(gitcmd .. ' ' .. branch.fullname, 1, dispatch_opts)
     endif
   endif
 
-  return 0
+  return true
 enddef
 
-def Continue(git_type: string): number
+def Continue(git_type: string): bool
   if git_type ==? 'stash'
     ContinueStash()
   else
@@ -1916,19 +1921,19 @@ def Continue(git_type: string): number
 
   redraw
   fugitive#ReloadStatus()
-  return 0
+  return true
 enddef
 
-def Skip(): number
+def Skip(): bool
   var dispatch_opts = DispatchOpts.new()
   dispatch_opts.no_dispatch = true
   GitCmd('rebase --skip', 1, dispatch_opts)
   redraw
   fugitive#ReloadStatus()
-  return 0
+  return true
 enddef
 
-def Abort(git_type: string): number
+def Abort(git_type: string): bool
   if git_type ==? 'stash'
     AbortStash()
   else
@@ -1938,7 +1943,7 @@ def Abort(git_type: string): number
   redraw
   echo git_type .. ' aborted'
   fugitive#ReloadStatus()
-  return 0
+  return true
 enddef
 
 def ContinueStash(): void
@@ -1951,12 +1956,12 @@ def AbortStash(): void
   GitCmd('reset --merge', 0)
 enddef
 
-def Push(choose_upstream: bool, force: bool, set_upstream: bool): number
+def Push(choose_upstream: bool, force: bool, set_upstream: bool): bool
   var branch = BranchUnderCursor()
 
   if !branch.is_local
     v:warningmsg = "Can't push a remote branch"
-    return 1
+    return false
   endif
 
   requires_buf_refresh = 0
@@ -1981,7 +1986,7 @@ def Push(choose_upstream: bool, force: bool, set_upstream: bool): number
     elseif len(remote_groups) == 0
       redraw
       echo 'There are no remotes to push to'
-      return 1
+      return false
     else
       group = remote_groups[0]
     endif
@@ -1996,18 +2001,18 @@ def Push(choose_upstream: bool, force: bool, set_upstream: bool): number
 
   if index(remote_groups, group) < 0
     v:warningmsg = 'Remote does not exist'
-    return 1
+    return false
   else
     var cmd = 'push ' .. flags .. ' ' .. group .. ' ' .. branch.fullname
     if !force || !g:twiggy_prompted_force_push
       GitCmd(cmd, 1)
     else
       return Confirm('Force push (with lease) to ' .. branch.tracking .. '?',
-        "GitCmd('" .. cmd .. "', 1)", 0)
+        "GitCmd('" .. cmd .. "', 1)", false)
     endif
   endif
 
-  return 0
+  return true
 enddef
 
 def g:TwiggyCompleteRemotes(A: string, L: string, P: string): string
@@ -2020,7 +2025,7 @@ def g:TwiggyCompleteRemotes(A: string, L: string, P: string): string
   return remotes
 enddef
 
-def Rename(): number
+def Rename(): bool
   requires_buf_refresh = 0
 
   var branch = BranchUnderCursor()
@@ -2029,20 +2034,24 @@ def Rename(): number
   if !empty(new_name)
     echo 'Renaming "' .. branch.fullname .. '" to "' .. new_name .. '"' .. ellipsis
     GitCmd('branch -m ' .. branch.fullname .. ' ' .. new_name, 0)
+    if v:shell_error != 0
+      RenderOutputBuffer()
+      return false
+    endif
     fugitive#ReloadStatus()
   endif
-  return 0
+  return true
 enddef
 
-def Stash(pop: bool): number
+def Stash(pop: bool): bool
   var pop_arg = pop ? ' pop' : ''
   GitCmd('stash' .. pop_arg, 0)
 
   redraw
-  if !v:shell_error
+  if v:shell_error == 0
     echo 'Stash' .. (pop ? ' popped!' : 'ed')
   endif
-  return 0
+  return v:shell_error == 0
 enddef
 
 # -----------------------------------------------------------------------------
