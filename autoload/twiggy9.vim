@@ -1581,6 +1581,8 @@ enddef
 export def Main(...args: list<any>): void
   if len(args) == 0
     Branch()
+  elseif args[0] ==# 'refresh'
+	  Refresh()
   elseif args[0] ==# 'switch'
     if len(args) < 2
       echo 'Usage: :Twiggy switch BRANCH'
@@ -2068,5 +2070,3 @@ enddef
 autocmd BufEnter twiggy://* execute 'command! -buffer Git ' .. CloseString() .. ' | silent <Cmd>Git<CR>'
 autocmd BufEnter twiggy://* execute 'command! -buffer Git commit ' .. CloseString() .. ' | silent <Cmd>Git commit<CR>'
 autocmd BufEnter twiggy://* execute 'command! -buffer Git blame  ' .. CloseString() .. ' | silent <Cmd>Git blame<CR>'
-
-command! TwiggyRefresh Refresh()

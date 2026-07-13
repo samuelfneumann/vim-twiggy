@@ -14,7 +14,7 @@ endfunction
 
 function! TwiggyComplete(A,L,P) abort
   let parts = split(a:L)
-  let subcommands = ['switch', 'close']
+  let subcommands = ['switch', 'close', 'refresh']
 
   if len(parts) <= 2 && (len(parts) < 2 || index(subcommands, parts[1]) < 0)
     let completions = ''

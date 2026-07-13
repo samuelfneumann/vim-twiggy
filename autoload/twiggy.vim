@@ -1590,6 +1590,8 @@ endfunction
 function! twiggy#Main(...) abort
   if len(a:000) == 0
     call twiggy#Branch()
+  elseif a:000[0] ==# 'refresh'
+	  call Refresh()
   elseif a:000[0] ==# 'switch'
     if len(a:000) < 2
       echo "Usage: :Twiggy switch BRANCH"
@@ -2090,5 +2092,3 @@ endfunction
 autocmd BufEnter twiggy://* exec "command! -buffer Git " . <SID>close_string() . " | silent normal! :<\C-U>Git\<CR>"
 autocmd BufEnter twiggy://* exec "command! -buffer Git commit " . <SID>close_string() . " | silent normal! :<\C-U>Git commit\<CR>"
 autocmd BufEnter twiggy://* exec "command! -buffer Git blame  " . <SID>close_string() . " | silent normal! :<\C-U>Git blame\<CR>"
-
-command! TwiggyRefresh call <SID>Refresh()

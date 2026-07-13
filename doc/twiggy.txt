@@ -23,7 +23,10 @@ COMMANDS                                        *twiggy-commands*
         provide the starting point branch as a second argument.
 
     'close'
-        Closes all opened 'TwiggyOutput' buffers
+        Closes all opened 'TwiggyOutput' buffers.
+
+    'refresh'
+        Refreshes the Twiggy branch view in the current tab page.
 
 
 FUGITIVE COMPATIBILITY                         *twiggy-fugitive*
