@@ -23,17 +23,20 @@ COMMANDS                                        *twiggy-commands*
         provide the starting point branch as a second argument.
 
     'close'
-        Closes all opened 'TwiggyOutput' buffers
+        Closes all opened 'TwiggyOutput' buffers.
+
+    'refresh'
+        Refreshes the Twiggy branch view in the current tab page.
 
 
 FUGITIVE COMPATIBILITY                         *twiggy-fugitive*
-Twiggy is aware of the |fugitive| commands |:Gstatus|, |:Gcommit| and |:Gblame|.
+Twiggy is aware of the |fugitive| commands |:Git|, |:Git commit|,  and |:Git blame|,  
 Calling these within the twiggy buffer will first jump to the last used buffer
 before running the actual commands.  This avoids a surprisingly claustrophobic
 feeling while inside twiggy's buffer.  You may also opt to automatically close
 twiggy when running these commands by setting:
 >
-  let g:twiggy_close_on_fugitive_command = 1
+  let g:twiggy_close_on_fugitive_cmd = 1
 <
 
 
@@ -148,7 +151,7 @@ The height of Twiggy's buffer.  Only applies for horizontal splits.
                                                 *'adapt_columns'*
 Default: 0
 Ensures all branch names are visible in twiggy's buffer (overrides
-|'adapt_columns'|).  Only applies for vertical splits.
+|num_columns|).  Only applies for vertical splits.
 >
   let g:twiggy_adapt_columns = 1
 <
@@ -190,6 +193,12 @@ Default: 1
 Prompts to make sure you really want to force push (with lease).  Turn this off with:
 >
   let g:twiggy_prompted_force_push = 0
+<
+                                                *'use_dispatch'*
+Default: 1 if vim-dispatch is loaded, 0 otherwise
+Whether to use vim-dispatch for background git commands.  To turn it off:
+>
+  let g:twiggy_use_dispatch = 0
 <
                                                 *'enable_quickhelp'*
 Default: 1
@@ -237,6 +246,7 @@ gi                Cycle through sorts of groups other than that of the branch
                   under the cursor.  Useful for lazily resorting remote
                   branches without having to jump down to them.
 
+                                                *twiggy-gI*
 gI                Like gi, but in reverse... even though there are only two
                   options.
 
@@ -321,7 +331,7 @@ M                 Merge the branch under the cursor's remote into the current
 gm                Like m, but with --no-ff
 
                                                 *twiggy-gM*
-gm                Like M, but with --no-ff
+gM                Like M, but with --no-ff
 
                                                 *twiggy-r<space>*
 r<Space>          Populate command line with :Git rebase
@@ -472,16 +482,15 @@ put something like the following in your vimrc:
 <
 TwiggyGroup                 Type         a group heading (local, origin, ...)
 TwiggySortText              Comment      sort indicator (beside the heading)
-TwiggyBranchStatus          DiffDelete   group name becomes 'rebasing' or
-                                         'merging'
 TwiggyCurrent               Identifier   name of the current branch
 TwiggyNotInReflog           Comment      name of branches not in the reflog
-TwiggyIconCurrent           Identifier   icon: generally the * character
-TwiggyIconTracking          String       icon: an up-to-date tracking branch
-TwiggyIconAhead             Type         icon: branch is ahead of remote
-TwiggyIconAheadBehind       Type         icon: branch is both ahead and behind
-TwiggyIconDetached          Identifier   icon: current branch is detached
-TwiggyIconUnmerged          Type         icon: current branch is unmerged
+TwiggyTracking              String       icon: an up-to-date tracking branch
+TwiggyAhead                 Type         icon: branch is ahead of remote
+TwiggyBehind                Type         icon: branch is behind remote
+TwiggyAheadBehind           Type         icon: branch is both ahead and behind
+TwiggyDetached              Identifier   icon: current branch is detached
+TwiggyDetachedText          Special      name of detached HEAD branch
+TwiggyUnmerged              Type         icon: current branch is unmerged
 TwiggyWorktree              Special      icon: branch is checked out in a worktree
 
   vim:tw=78:et:ft=help:norl:

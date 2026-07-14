@@ -1,0 +1,2072 @@
+vim9script
+
+# twiggy.vim -- Maintain your bearings while branching with git
+# Maintainer: Samuel Neumann <samuelfneumann@gmail.com>
+# Website:    https://samuelfneumann.github.io/
+# License:    Same terms as Vim itself (see :help license)
+
+if exists('g:autoloaded_twiggy')
+  finish
+endif
+g:autoloaded_twiggy = 1
+
+highlight default link TwiggyPrivateBranch NonText
+highlight default link TwiggyPrivateRemoteBranch NonText
+highlight default link TwiggyPrivateBranchPrefix NonText
+highlight default link TwiggyPrivateBranchLocalPrefix NonText
+highlight default link TwiggyPrivateBranchRemotePrefix NonText
+highlight default link TwiggyPrivateBranchCurrentPrefix NonText
+
+highlight default link TwiggyCommitMsg Normal
+
+class DispatchOpts
+  public var no_dispatch: bool = false
+  public var use_start: bool = false
+endclass
+
+class TwiggyBranch
+  public var current: bool = false
+  public var decoration: string = ' '
+  public var tracking: string = ''
+  public var remote: string = ''
+  public var status: string = ''
+  public var fullname: string = ''
+  public var is_local: bool = false
+  public var type: string = ''
+  public var group: string = ''
+  public var name: string = ''
+  public var display_name: string = ''
+  public var hash: string = ''
+  public var msg: string = ''
+  public var remote_branch: string = ''
+  public var remote_info: string = ''
+  public var remote_details: string = ''
+  public var details: string = ''
+  public var line: number = 0
+endclass
+
+class TwiggyGroup
+  public var name: string = ''
+  public var branches: list<TwiggyBranch> = []
+endclass
+
+class MappingAction
+  public var fn: string = ''
+  public var args: list<any> = []
+endclass
+
+class Set
+	final elems: dict<bool>
+
+	def Add(elem: string)
+		this.elems[elem] = true
+	enddef
+
+	def Remove(elem: string): bool
+		if this.elems->has_key(elem)
+			this.elems->remove(elem)
+			return true
+		endif
+		return false
+	enddef
+
+	def Contains(elem: string): bool
+		return this.elems->has_key(elem)
+	enddef
+endclass
+
+# -----------------------------------------------------------------------------
+# Script state
+# -----------------------------------------------------------------------------
+var init_line: number = 0
+var mappings: dict<MappingAction> = {}
+var branch_line_refs: dict<TwiggyBranch> = {}
+var last_branch_under_cursor: TwiggyBranch = TwiggyBranch.new()
+var last_output: list<string> = []
+var requires_buf_refresh = 1
+var sorted: number = 0
+var git_cmd_run: number = 0
+var worktree_branches: Set = Set.new()
+var total_lines: number = 0
+var branches_not_in_reflog: list<string> = []
+
+var branch_marker = {
+  local: '(l)',
+  remote: '(r)',
+}
+var branch_marker_vmagic = {
+  local: '\(l\)',
+  remote: '\(r\)',
+}
+
+# -----------------------------------------------------------------------------
+# Utility
+# -----------------------------------------------------------------------------
+def Buffocus(bufnr_: number): void
+  var switchbuf_cached = &switchbuf
+  set switchbuf=useopen
+  execute 'sb ' .. bufnr_
+  execute 'set switchbuf=' .. switchbuf_cached
+enddef
+
+def Sub(str_: string, pat: string, rep: string): string
+  return substitute(str_, '\v\C' .. pat, rep, '')
+enddef
+
+def Gsub(str_: string, pat: string, rep: string): string
+  return substitute(str_, '\v\C' .. pat, rep, 'g')
+enddef
+
+def Fexists(file: string): bool
+  return !empty(glob(file))
+enddef
+
+def EncodeMapping(mapping: string): string
+  return Sub(mapping, '\v^\<', '___')
+enddef
+
+def Mapping(mapping: string, fn: string, args: list<any>): void
+  var action = MappingAction.new()
+  action.fn = fn
+  action.args = args
+  mappings[EncodeMapping(mapping)] = action
+  execute 'nnoremap <buffer> <silent> ' .. mapping
+      .. ' <ScriptCmd>CallMapping(''' .. EncodeMapping(mapping) .. ''')<CR>'
+enddef
+
+def VisualMapping(mapping: string, fn: string, args: list<any>): void
+  execute 'xnoremap <buffer> <silent> ' .. mapping
+      .. ' <ScriptCmd>VisualCall(''' .. fn .. ''', ' .. string(args) .. ')<CR>'
+enddef
+
+def GetVim9Indicator(force: bool=false): string
+	const indicator = "(vim9)"
+	if force | return indicator | endif
+	return g:twiggy_show_vim9_indicator ? indicator : ''
+enddef
+
+# -----------------------------------------------------------------------------
+# Icons
+# -----------------------------------------------------------------------------
+var icon_set: list<string>
+if exists('g:twiggy_icons') && type(g:twiggy_icons) == v:t_list && len(filter(copy(g:twiggy_icons), (_, val) => type(val) == v:t_string && strchars(val) == 1)) == 8
+  icon_set = g:twiggy_icons
+elseif has('multi_byte')
+  icon_set = ['*', '✓', '↑', '↓', '↕', '∅', '✗', '⊞']
+else
+  icon_set = ['*', '=', '+', '-', '~', '%', 'x', '+']
+endif
+
+var ellipsis = has('multi_byte') ? '…' : '...'
+var icons: dict<string> = {}
+icons.current = icon_set[0]
+icons.tracking = icon_set[1]
+icons.ahead = icon_set[2]
+icons.behind = icon_set[3]
+icons.both = icon_set[4]
+icons.detached = icon_set[5]
+icons.unmerged = icon_set[6]
+icons.worktree = icon_set[7]
+
+# -----------------------------------------------------------------------------
+# Options
+# -----------------------------------------------------------------------------
+g:twiggy_num_columns = get(g:, 'twiggy_num_columns', 31)
+g:twiggy_num_rows = get(g:, 'twiggy_num_rows', 31)
+g:twiggy_adapt_columns = get(g:, 'twiggy_adapt_columns', false)
+g:twiggy_split_direction = get(g:, 'twiggy_split_direction', 'vertical')
+g:twiggy_split_position = get(g:, 'twiggy_split_position', '')
+g:twiggy_local_branch_sort = get(g:, 'twiggy_local_branch_sort', 'alpha')
+g:twiggy_local_branch_sorts = get(g:, 'twiggy_local_branch_sorts', ['alpha', 'date', 'track', 'mru'])
+g:twiggy_remote_branch_sort = get(g:, 'twiggy_remote_branch_sort', 'alpha')
+g:twiggy_remote_branch_sorts = get(g:, 'twiggy_remote_branch_sorts', ['alpha', 'date'])
+g:twiggy_group_locals_by_slash = get(g:, 'twiggy_group_locals_by_slash', true)
+g:twiggy_group_remotes_by_slash = get(g:, 'twiggy_group_remotes_by_slash', false)
+g:twiggy_set_upstream = get(g:, 'twiggy_set_upstream', true)
+g:twiggy_prompted_force_push = get(g:, 'twiggy_prompted_force_push', true)
+g:twiggy_enable_remote_delete = get(g:, 'twiggy_enable_remote_delete', false)
+g:twiggy_use_dispatch = get(g:, 'twiggy_use_dispatch', exists('g:loaded_dispatch') && g:loaded_dispatch ? true : false)
+g:twiggy_close_on_fugitive_cmd = get(g:, 'twiggy_close_on_fugitive_cmd', false)
+g:twiggy_enable_quickhelp = get(g:, 'twiggy_enable_quickhelp', true)
+g:twiggy_show_full_ui = get(g:, 'twiggy_show_full_ui', g:twiggy_enable_quickhelp)
+g:twiggy_git_log_command = get(g:, 'twiggy_git_log_command', '')
+g:twiggy_refresh_buffers = get(g:, 'twiggy_refresh_buffers', true)
+g:twiggy_push_set_upstream = get(g:, 'twiggy_push_set_upstream', true)
+g:twiggy_show_vim9_indicator = get(g:, 'twiggy_show_vim9_indicator', false)  # Strictly for testing/debugging
+
+def ShowingFullUi(): bool
+  return g:twiggy_enable_quickhelp && g:twiggy_show_full_ui
+enddef
+
+# -----------------------------------------------------------------------------
+# System / Git command helpers
+# -----------------------------------------------------------------------------
+def System(cmd: string, bg: bool, dispatch_opts: DispatchOpts = DispatchOpts.new()): list<string>
+  var command = cmd
+
+  if bg
+    if exists('g:loaded_dispatch') && g:loaded_dispatch && g:twiggy_use_dispatch
+      if dispatch_opts.no_dispatch
+        execute ':!' .. command
+      elseif dispatch_opts.use_start
+        execute ':Start ' .. command
+      else
+        execute ':Dispatch ' .. command
+      endif
+    else
+      execute ':!' .. command
+    endif
+  else
+    var output = systemlist(command)
+    if v:shell_error != 0
+      last_output = output
+    endif
+
+    return output
+  endif
+
+  return []
+enddef
+
+def AttnMode(): bool
+  if exists('t:twiggy_git_mode') && index(['rebase', 'merge', 'cherry-pick', 'stash'], t:twiggy_git_mode) >= 0
+    return true
+  endif
+  return false
+enddef
+
+def Gitize(cmd: string): string
+  var git_cmd: string
+  if exists('t:twiggy_bufnr') && t:twiggy_bufnr == bufnr('')
+    git_cmd = t:twiggy_git_cmd
+  else
+    git_cmd = g:FugitiveShellCommand()
+  endif
+  return git_cmd .. ' ' .. cmd
+enddef
+
+def GitCmd(cmd: string, bg: bool, dispatch_opts: DispatchOpts = DispatchOpts.new()): list<string>
+  var full_cmd = Gitize(cmd)
+  git_cmd_run = 1
+  if bg
+    System(full_cmd, bg, dispatch_opts)
+  else
+    return System(full_cmd, bg, dispatch_opts)
+  endif
+
+  return []
+enddef
+
+def CallMapping(mapping: string): void
+  var key = EncodeMapping(mapping)
+  var deprecated_mappings = {}
+  var encoded_mapping = EncodeMapping(mapping)
+  if has_key(deprecated_mappings, encoded_mapping)
+    t:twiggy_deprecation_notice = 'WARNING: `' .. mapping
+        .. '` is deprecated and will eventually be removed.  '
+        .. 'Use `' .. deprecated_mappings[encoded_mapping] .. '` instead.'
+  endif
+
+  var action = mappings[key]
+
+  if !call(action.fn, action.args)
+    ErrorMsg()
+  else
+    Render()
+    RefreshBuffers()
+    Buffocus(t:twiggy_bufnr)
+    if AttnMode()
+      wincmd p
+      Git
+    endif
+    RenderOutputBuffer()
+  endif
+enddef
+
+def VisualCall(fn: string, args: list<any>): void
+  var lnum1 = min([line('v'), line('.')])
+  var lnum2 = max([line('v'), line('.')])
+  execute "normal! \<Esc>"
+
+  var branches = BranchesInRange(lnum1, lnum2)
+  if empty(branches)
+    return
+  endif
+
+  if fn ==# 'YankBranches'
+    YankBranches(lnum1, lnum2)
+    return
+  endif
+
+  var original_line = line('.')
+  var failed = false
+  for branch in branches
+    cursor(branch.line, 1)
+    if !call(fn, args)
+      failed = true
+    endif
+  endfor
+  cursor(original_line, 1)
+
+  if failed
+    ErrorMsg()
+  else
+    Render()
+    RefreshBuffers()
+    Buffocus(t:twiggy_bufnr)
+    RenderOutputBuffer()
+  endif
+enddef
+
+# -----------------------------------------------------------------------------
+# Branch parser
+# -----------------------------------------------------------------------------
+def ParseBranch(branch_text: string, ref_type: string): TwiggyBranch
+  var branch = TwiggyBranch.new()
+  var pieces = split(branch_text, "\t\t", true)
+
+  branch.current = pieces[0] ==# '*'
+  branch.decoration = ' '
+
+  if branch.current
+    var git_mode = exists('t:twiggy_git_mode') ? t:twiggy_git_mode : GetGitMode()
+    branch.decoration = git_mode !=# 'normal' ? icons.unmerged : icons.current
+  elseif worktree_branches.Contains(pieces[1])
+    branch.decoration = icons.worktree
+  endif
+
+  var remote_details = pieces[3] .. ' ' .. pieces[4]
+  branch.tracking = ''
+  if ref_type ==# 'heads'
+    branch.tracking = pieces[3]
+  endif
+  branch.remote = branch.tracking !=# '' ? split(branch.tracking, '/')[0] : ''
+
+  if branch.tracking !=# ''
+    if pieces[4] !=# ''
+      branch.status = 'both'
+      branch.decoration ..= icons.both
+    elseif match(remote_details, '\vahead [0-9]') >= 0
+      branch.status = 'ahead'
+      branch.decoration ..= icons.ahead
+    elseif match(remote_details, '\vbehind [0-9]') >= 0
+      branch.status = 'behind'
+      branch.decoration ..= icons.behind
+    else
+      branch.status = ''
+      branch.decoration ..= icons.tracking
+    endif
+  else
+    branch.status = ''
+    branch.decoration ..= ' '
+  endif
+
+  branch.fullname = pieces[1]
+
+  if ref_type ==# 'heads'
+    branch.is_local = true
+    branch.type = 'local'
+    if g:twiggy_group_locals_by_slash && match(branch.fullname, '/') >= 0
+      var group = matchstr(branch.fullname, '\v[^/]*')
+      branch.group = group
+      branch.name = Sub(branch.fullname, group .. '/', '')
+      branch.display_name = branch_marker.local .. branch.fullname
+    else
+      branch.group = 'local'
+      branch.name = branch.fullname
+      branch.display_name = branch_marker.local .. branch.fullname
+    endif
+  else
+    branch.is_local = false
+    branch.type = 'remote'
+    var branch_split = split(branch.fullname, '/')
+    branch.name = join(branch_split[1 :], '/')
+
+    if g:twiggy_group_remotes_by_slash && match(branch.name, '/') >= 0
+      var group = matchstr(branch.name, '\v[^/]*')
+      branch.group = join([branch_split[0], group], '/')
+      branch.name = Sub(branch.name, group .. '/', '')
+      branch.display_name = branch_marker.remote .. branch.fullname
+    else
+      branch.group = branch_split[0]
+      branch.name = join(branch_split[1 :], '/')
+      branch.display_name = branch_marker.remote .. branch.fullname
+    endif
+  endif
+
+  remote_details = pieces[3]
+  if pieces[4] !=# ''
+    remote_details = remote_details .. ': ' .. pieces[4][1 : -2]
+  endif
+
+  branch.hash = pieces[2]
+  branch.msg = pieces[5]
+  branch.remote_branch = pieces[3]
+  branch.remote_info = pieces[4][1 : -2]
+  branch.remote_details = remote_details
+
+  return branch
+enddef
+
+# -----------------------------------------------------------------------------
+# Git
+# -----------------------------------------------------------------------------
+def NoCommits(): bool
+  return Gsub(GitCmd('rev-list -n 1 --all | wc -l', 0)[0], ' ', '') ==# '0'
+enddef
+
+def DirtyTree(): bool
+  return !empty(GitCmd('diff --shortstat', 0))
+enddef
+
+def GitBranchVv(ref_type: string): list<TwiggyBranch>
+  var branches: list<TwiggyBranch> = []
+  var format = join([
+    '%(HEAD)',
+    '%(refname:short)',
+    '%(objectname:short)',
+    '%(upstream:short)',
+    '%(upstream:track)',
+    '%(contents:subject)',
+  ], "\t\t")
+
+  for branch in GitCmd('for-each-ref refs/' .. ref_type .. " --format=$'" .. format .. "'", 0)
+    var parsed = ParseBranch(branch, ref_type)
+    if !empty(parsed.name)
+      add(branches, parsed)
+    endif
+  endfor
+
+  return branches
+enddef
+
+def GetGitMode(): string
+  var git_dir = exists('t:twiggy_git_dir') ? t:twiggy_git_dir : b:git_dir
+  if isdirectory(git_dir .. '/rebase-apply') || isdirectory(git_dir .. '/rebase-merge')
+    return 'rebase'
+  elseif Fexists(git_dir .. '/CHERRY_PICK_HEAD')
+    return 'cherry-pick'
+  elseif Fexists(git_dir .. '/MERGE_HEAD')
+    return 'merge'
+  elseif !empty(GitCmd('diff --diff-filter=U --name-only', 0))
+    return 'stash'
+  else
+    return 'normal'
+  endif
+enddef
+
+def UpdateWorktreeBranches(): void
+  worktree_branches = Set.new()
+  var worktree_count: number = 0
+  for line_ in GitCmd('worktree list --porcelain', 0)
+    if line_ =~# '^worktree '
+      worktree_count += 1
+    elseif line_ =~# '^branch ' && worktree_count > 1
+      var branchname = substitute(matchstr(line_, '^branch \zs.*'), '^refs/heads/', '', '')
+      worktree_branches.Add(branchname)
+    endif
+  endfor
+enddef
+
+export def GetBranches(): list<TwiggyBranch>
+  UpdateWorktreeBranches()
+  var locals = GitBranchVv('heads')
+  var locals_sorted: list<TwiggyBranch> = []
+
+  var head = GitCmd('rev-parse --symbolic-full-name --abbrev-ref HEAD', 0)[0]
+  if head ==# 'HEAD'
+    var detached = TwiggyBranch.new()
+    detached.decoration = icons.current .. icons.detached
+    detached.status = 'detached'
+    detached.fullname = 'HEAD'
+    detached.name = 'HEAD@' .. GitCmd('rev-parse --revs-only --short HEAD', 0)[0]
+    detached.is_local = true
+    detached.current = true
+    detached.remote = GitCmd('remote', 0)[0]
+    detached.type = 'local'
+    detached.tracking = ''
+    detached.details = 'detached'
+    detached.group = 'local'
+    add(locals_sorted, detached)
+  endif
+
+  var reflog = GetUniqBranchNamesFromReflog()
+  branches_not_in_reflog = []
+
+  var local_refs: dict<TwiggyBranch> = {}
+  for local in locals
+    local_refs[local.fullname] = local
+    if index(reflog, local.name) < 0
+      add(branches_not_in_reflog, local.name)
+    endif
+  endfor
+
+  if g:twiggy_local_branch_sort ==# 'mru'
+    for branch_name in reflog
+      if has_key(local_refs, branch_name)
+      	add(locals_sorted, local_refs[branch_name])
+      	remove(locals, index(locals, local_refs[branch_name]))
+        endif
+    endfor
+  endif
+
+  if g:twiggy_local_branch_sort ==# 'track'
+    var ahead_branches: list<TwiggyBranch> = []
+    var behind_branches: list<TwiggyBranch> = []
+    var both_branches: list<TwiggyBranch> = []
+    var up_to_date_tracking_branches: list<TwiggyBranch> = []
+    var non_tracking_branches: list<TwiggyBranch> = []
+
+    for branch in locals
+      if branch.tracking !=# ''
+        if branch.status ==# 'ahead'
+          add(ahead_branches, branch)
+        elseif branch.status ==# 'behind'
+          add(behind_branches, branch)
+        elseif branch.status ==# 'both'
+          add(both_branches, branch)
+        else
+          add(up_to_date_tracking_branches, branch)
+        endif
+      else
+        add(non_tracking_branches, branch)
+      endif
+    endfor
+
+    locals = []
+    extend(extend(extend(extend(extend(locals_sorted, ahead_branches), both_branches), behind_branches), up_to_date_tracking_branches), non_tracking_branches)
+  endif
+
+  if g:twiggy_local_branch_sort ==# 'date'
+    for branch_name in GetByCommiterDate('heads')
+      if has_key(local_refs, branch_name)
+        add(locals_sorted, local_refs[branch_name])
+        remove(locals, index(locals, local_refs[branch_name]))
+      endif
+    endfor
+  endif
+
+  locals = extend(locals_sorted, locals)
+
+  var remotes = GitBranchVv('remotes')
+  var remotes_sorted: list<TwiggyBranch> = []
+
+  if g:twiggy_remote_branch_sort ==# 'date'
+    var remote_refs: dict<TwiggyBranch> = {}
+
+    for branch in remotes
+      remote_refs[branch.fullname] = branch
+    endfor
+
+    for remote in GitCmd('remote', 0)
+      for branch_name in GetByCommiterDate('remotes/' .. remote)
+        var remote_branch_name = remote .. '/' .. branch_name
+        if has_key(remote_refs, remote_branch_name)
+          add(remotes_sorted, remote_refs[remote_branch_name])
+          remove(remotes, index(remotes, remote_refs[remote_branch_name]))
+        endif
+      endfor
+    endfor
+  endif
+
+  return extend(locals, extend(remotes_sorted, remotes))
+enddef
+
+
+def GetCurrentBranch(): string
+  return GitCmd('rev-parse --abbrev-ref HEAD', 0)[0]
+enddef
+
+def GetCurrentBranchRemoteUpstream(): string
+  var remote = GitCmd('rev-parse --abbrev-ref --symbolic-full-name @{u} 2>/dev/null', 0)
+  if empty(remote)
+    return ''
+  endif
+  return remote[0]
+enddef
+
+def GetCurrentBranchRemotePush(): string
+  var remote = GitCmd('rev-parse --abbrev-ref --symbolic-full-name @{push} 2>/dev/null', 0)
+  if empty(remote)
+    return ''
+  endif
+  return remote[0]
+enddef
+
+def BranchExists(branch: string): bool
+  GitCmd('show-ref --verify --quiet refs/heads/' .. branch, 0)
+  return !v:shell_error
+enddef
+
+def BranchUnderCursor(): TwiggyBranch
+  var line_no = line('.')
+  if has_key(branch_line_refs, line_no)
+    return branch_line_refs[line_no]
+  endif
+  return TwiggyBranch.new()
+enddef
+
+def g:TwiggyBranchUnderCursor(): TwiggyBranch
+  if &ft !=# 'twiggy'
+    throw 'Not in twiggy buffer'
+  endif
+  return BranchUnderCursor()
+enddef
+
+def BranchesInRange(lnum1: number, lnum2: number): list<TwiggyBranch>
+  var branches: list<TwiggyBranch> = []
+  for line_no in range(lnum1, lnum2)
+    if has_key(branch_line_refs, line_no)
+      add(branches, branch_line_refs[line_no])
+    endif
+  endfor
+  return branches
+enddef
+
+def GetUniqBranchNamesFromReflog(): list<string>
+  var branches: list<string> = []
+  var seen: dict<bool> = {}
+
+  # Parse the reflog subject directly instead of relying on positional awk
+  # fields from human-readable output.
+  for subject in System(Gitize("log -g --grep-reflog='^checkout: moving from ' --format=%gs HEAD"), 0)
+    var branch = matchstr(subject, '^checkout: moving from \S\+ to \zs\S\+$')
+    if branch ==# ''
+      continue
+    endif
+    if !has_key(seen, branch)
+      seen[branch] = true
+      add(branches, branch)
+    endif
+  endfor
+
+  return branches
+enddef
+
+def GetMergedBranches(): list<string>
+  # Preserves the original function's behavior, although this does not appear
+  # to be used elsewhere in the file.
+  return map(GitCmd('branch --list --merged', 0), (_, _) => "\n")
+enddef
+
+def GetByCommiterDate(ref_type: string): list<string>
+  var cmd: string = Gitize(
+    "for-each-ref --sort=-committerdate --format='%(refname)' "
+      .. 'refs/' .. ref_type .. " | sed 's/refs\\/"
+      .. Sub(ref_type, '/', '\\/') .. "\\///g'"
+  )
+  return System(cmd, 0)
+enddef
+
+def UpdateLastBranchUnderCursor(): void
+  last_branch_under_cursor = BranchUnderCursor()
+enddef
+
+# -----------------------------------------------------------------------------
+# UI views
+# -----------------------------------------------------------------------------
+def StandardView(): list<string>
+  var groups: dict<dict<TwiggyGroup>> = {}
+  groups.local = {}
+  groups.remote = {}
+  var group_refs: dict<list<TwiggyGroup>> = {}
+  group_refs.local = []
+  group_refs.remote = []
+  init_line = 0
+  branch_line_refs = {}
+
+  var branches: list<TwiggyBranch> = GetBranches()
+  for branch in branches
+    if empty(branch.name)
+      continue
+    endif
+
+    if !has_key(groups[branch.type], branch.group)
+      var group = TwiggyGroup.new()
+      var group_name: string
+      if branch.group ==# 'local'
+        group_name = t:twiggy_git_mode ==# 'normal' ? 'local' : t:twiggy_git_mode
+      elseif branch.type ==# 'remote'
+        group_name = 'r:' .. branch.group
+      else
+        group_name = branch.group
+      endif
+      group.name = group_name
+      add(group.branches, branch)
+      groups[branch.type][branch.group] = group
+      if branch.group ==# 'local'
+        group_refs.local = extend([group], group_refs.local)
+      else
+        add(group_refs[branch.type], group)
+      endif
+    else
+      add(groups[branch.type][branch.group].branches, branch)
+    endif
+  endfor
+
+  var output: list<string> = []
+  var line_no: number = ShowingFullUi() ? 1 : 0
+
+  for group_type in ['local', 'remote']
+    for group_ref in group_refs[group_type]
+      line_no += 1
+      if line_no != 1
+        add(output, '')
+        line_no += 1
+      endif
+
+      var sort_name = get(g:, 'twiggy_' .. group_type .. '_branch_sort')
+      add(output, group_ref.name .. ' [' .. sort_name .. ']')
+
+      for branch in group_ref.branches
+        add(output, branch.decoration .. (branch.display_name !=# '' ? branch.display_name : branch.name))
+        line_no += 1
+        branch.line = line_no
+        branch_line_refs[line_no] = branch
+        if !init_line
+          if sorted
+            if branch.fullname ==# last_branch_under_cursor.fullname
+              sorted = 0
+              init_line = branch.line
+            endif
+          elseif !git_cmd_run && !empty(last_branch_under_cursor.fullname)
+            init_line = last_branch_under_cursor.line
+            git_cmd_run = 0
+          else
+            if match(branch.fullname, '(no branch') >= 0
+              init_line = line_no
+            elseif branch.status ==# 'detached'
+              init_line = line_no
+            elseif !empty(last_branch_under_cursor.fullname)
+              init_line = last_branch_under_cursor.line
+            elseif branch.current
+              init_line = branch.line
+            endif
+          endif
+        endif
+      endfor
+    endfor
+  endfor
+
+  return output
+enddef
+
+def QuickhelpView(): list<string>
+  var output: list<string> = []
+  add(output, 'Twiggy Quickhelp')
+  add(output, '===========================')
+  add(output, '<space>R  Refresh')
+  add(output, '<C-N>     jump to next group')
+  add(output, '<C-P>     jump to prev group')
+  add(output, 'JL        jump to curr branch')
+  add(output, 'JU        jump to curr upstream')
+  add(output, 'JP        jump to curr push')
+  add(output, 'g?        toggle this help')
+  add(output, '---------------------------')
+  add(output, 'w/ the cursor on a branch:')
+  add(output, '---------------------------')
+  add(output, '<CR>      checkout')
+  add(output, 'c         checkout')
+  add(output, 'o         checkout')
+  add(output, 'cm        checkout --merge')
+  add(output, 'om        checkout --merge')
+  add(output, 'C         checkout remote')
+  add(output, 'O         checkout remote')
+  add(output, 'Cm        checkout remote --merge')
+  add(output, 'Om        checkout remote --merge')
+  add(output, 'gc        checkout as: <name>')
+  add(output, 'go        checkout as: <name>')
+  add(output, 'f         fetch remote')
+  add(output, 'm         merge')
+  add(output, 'M         merge remote')
+  add(output, 'gm        `m` --no-ff')
+  add(output, 'gM        `M` --no-ff')
+  add(output, 'r         rebase')
+  add(output, 'R         rebase remote')
+  add(output, 'gri       `r` -i --autostash')
+  add(output, 'gRi       `R` -i --autostash')
+  add(output, 'P         push')
+  add(output, 'gP        push (prompted)')
+  add(output, '!P        push --force-with-lease')
+  add(output, 'p         pull')
+  if g:twiggy_git_log_command !=# ''
+    add(output, 'gl          git log')
+    add(output, 'gL          git log `..`')
+  endif
+  add(output, ',         rename')
+  add(output, 'yy        yank <branch>')
+  add(output, 'dd        delete')
+  add(output, '!dd       delete --force')
+  if g:twiggy_enable_remote_delete
+    add(output, 'dP          delete from server')
+  endif
+  add(output, '.         :Git <cursor> <branch>')
+  add(output, '<<        stash')
+  add(output, '>>        pop stash')
+  add(output, '----------------------------')
+  add(output, 'sorting, etc:')
+  add(output, '----------------------------')
+  add(output, 'i         cycle sorts')
+  add(output, 'I         `i` in reverse')
+  add(output, 'gi        cycle remote sorts')
+  add(output, 'gI        `gi` in reverse')
+  add(output, 'a         toggle slash-grouping')
+  add(output, 'ga        toggle slash-grouping remotes')
+  if g:twiggy_show_full_ui
+    add(output, '')
+    add(output, '****************************')
+    add(output, 'For more detailed info:')
+    add(output, ':help twiggy-mappings')
+  endif
+  return output
+enddef
+
+def RebaseView(): list<string>
+  return ['rebase in progress', '', 'from this window:', '  c to continue', '  s to skip', '  a to abort']
+enddef
+
+def MergeView(): list<string>
+  return ['merge in progress', '', 'from this window:', '  c to continue', '  a to abort']
+enddef
+
+def CherryPickView(): list<string>
+  return ['cherry pick in progress', '', 'from this window:', '  c to continue', '  a to abort']
+enddef
+
+def StashView(): list<string>
+  return ['stash conflicts', '', 'from this window:', '  c to continue (commit)', '  a to abort (reset)']
+enddef
+
+def ShowBranchDetails(): void
+  var line_no: number = line('.')
+  if !has_key(branch_line_refs, line_no)
+    return
+  endif
+
+  var branch_ref: TwiggyBranch = branch_line_refs[line_no]
+  var max_len: number = &columns - 16
+  var decor: string = branch_ref.decoration
+  var name: string = branch_ref.name
+  var hash: string = branch_ref.hash
+  var msg: string = branch_ref.msg
+  var remote_branch: string = branch_ref.remote_branch
+  var remote_info: string = branch_ref.remote_info
+  var status: string = branch_ref.status
+  var total_len: number = 8 + strcharlen(decor) + len(msg) + len(name) + len(hash) + len(remote_branch) + len(remote_info)
+
+  if total_len > max_len
+    msg = msg[0 : max_len + len(msg) - total_len - 1 - strcharlen(ellipsis)] .. ellipsis
+  endif
+  redraw
+
+  if exists('t:twiggy_deprecation_notice')
+    redraw
+    echohl WarningMsg
+    echomsg t:twiggy_deprecation_notice
+    echohl None
+    unlet t:twiggy_deprecation_notice
+    return
+  endif
+
+  for icon in split(decor, '\zs')
+    if icon ==# icons.current
+      echohl TwiggyCurrent
+    elseif icon ==# icons.tracking
+      echohl TwiggyTracking
+    elseif icon ==# icons.ahead
+      echohl TwiggyAhead
+    elseif icon ==# icons.behind
+      echohl TwiggyBehind
+    elseif icon ==# icons.both
+      echohl TwiggyAheadBehind
+    elseif icon ==# icons.detached
+      echohl TwiggyDetached
+    elseif icon ==# icons.unmerged
+      echohl TwiggyUnmerged
+    elseif icon ==# icons.worktree
+      echohl TwiggyWorktree
+    else
+      echohl ErrorMsg
+    endif
+    echon icon
+  endfor
+  echohl clear
+
+  if name =~# '\v^HEAD\@[0-9a-fA-F]+'
+    echohl TwiggyDetachedText
+  else
+    echohl TwiggyCurrent
+  endif
+  echon name
+  echohl clear
+
+  if !empty(hash)
+    echon ' ('
+    echohl TwiggyCommitHash
+    echon hash
+    echohl clear
+    echon ')'
+  endif
+
+  if !empty(remote_branch)
+    echon ' ['
+    echohl TwiggyUpstream
+    echon remote_branch
+    echohl clear
+    if !empty(remote_info)
+      echon ': '
+      if status ==# 'ahead'
+        echohl TwiggyAhead
+      elseif status ==# 'behind'
+        echohl TwiggyBehind
+      elseif status ==# 'both'
+        echohl TwiggyAheadBehind
+      endif
+      echon remote_info
+      echohl clear
+    endif
+    echon ']'
+  endif
+
+  if !empty(msg)
+    echohl TwiggyCommitMessage
+    echon ' ' .. msg
+    echohl clear
+    echon
+  endif
+enddef
+
+def RenderOutputBuffer(): void
+  if empty(last_output)
+    return
+  endif
+
+  silent keepalt botright new TwiggyOutput
+  setlocal filetype=twiggyoutput
+  var output: list<string> = last_output
+  var height: number = len(output)
+  if height < 5
+    height = 5
+  endif
+  execute 'resize ' .. height
+  normal! ggdG
+  setlocal modifiable
+  append(0, output)
+  normal! ddgg
+
+  setlocal nomodified nomodifiable noswapfile nowrap nonumber
+  setlocal buftype=nofile bufhidden=delete
+  if exists('+relativenumber')
+    setlocal norelativenumber
+  endif
+  last_output = []
+
+  syntax clear
+  syntax match TwiggyOutputText "\v^[^ ](.*)"
+  highlight link TwiggyOutputText Comment
+  syntax match TwiggyOutputFile "\v^\t(.*)"
+  highlight link TwiggyOutputFile File
+enddef
+
+export def CloseOutputBuffer(): void
+  for info in getbufinfo()
+    if getbufvar(info.bufnr, '&filetype') ==# 'twiggyoutput'
+      execute 'bwipeout' info.bufnr
+    endif
+  endfor
+enddef
+
+def Confirm(prompt: string, cmd: string, can_abort: bool): bool
+  redraw
+  echohl WarningMsg
+  echo prompt .. ' [Yn' .. (can_abort ? 'a' : '') .. ']'
+  echohl None
+
+  var input_char = nr2char(getchar())
+  if index(['a', "\<esc>"], input_char) >= 0 && can_abort
+    return false
+  elseif index(['Y', 'y', "\<cr>"], input_char) >= 0
+    execute cmd
+    return v:shell_error == 0
+  else
+    return false
+  endif
+enddef
+
+def PromptToStash(): bool
+  return Confirm('Working tree is dirty.  Stash first?', "GitCmd('stash', 0)", true)
+enddef
+
+def ErrorMsg(): void
+  if v:warningmsg !=# ''
+    redraw
+    echohl WarningMsg
+    echomsg v:warningmsg
+    v:warningmsg = ''
+    echohl None
+  endif
+enddef
+
+# -----------------------------------------------------------------------------
+# Navigation
+# -----------------------------------------------------------------------------
+def TraverseBranches(motion: string, count: number = 1): void
+  for _ in range(count)
+    execute 'normal! ' .. motion
+    var current_line = line('.')
+
+    var border_line = ShowingFullUi() ? 3 : 1
+    if current_line == total_lines && motion ==# 'j'
+      return
+    elseif motion ==# 'k' && current_line <= border_line
+      normal! j
+    else
+      while getline('.') =~# '\v^[A-Za-z]' || getline('.') ==# ''
+        execute 'normal! ' .. motion
+      endwhile
+    endif
+  endfor
+enddef
+
+def TraverseGroups(motion: string, end_: bool = false, count: number = 1): void
+  for _ in range(count)
+    if motion ==# 'j'
+      if end_
+        TraverseBranches('j')
+        if search('\v(^[A-Za-z])', 'W') > 0
+          TraverseBranches('k')
+        else
+          normal! G
+        endif
+      else
+        if search('\v^[A-Za-z]', 'W') > 0
+          normal! j
+        endif
+      endif
+    elseif motion ==# 'k'
+      if end_
+        if search('\v^[A-Za-z]', 'bW') > 0
+          TraverseBranches('k')
+        endif
+      else
+        TraverseBranches('k')
+        if search('\v^[A-Za-z]', 'bW') > 0
+          TraverseBranches('j')
+        endif
+      endif
+    endif
+  endfor
+enddef
+
+def JumpToCurrentBranch(): void
+  search(icons.current)
+enddef
+
+def JumpToCurrentUpstream(): void
+  var upstream: string = GetCurrentBranchRemoteUpstream()
+  search(upstream)
+enddef
+
+def JumpToCurrentPush(): void
+  var push: string = GetCurrentBranchRemotePush()
+  search(push)
+enddef
+
+def Bufrefresh(): void
+  if &ft ==# 'gitcommit'
+    Git
+  elseif &modifiable && &buftype ==# ''
+    try
+      silent edit
+    catch
+    endtry
+  endif
+enddef
+
+def RefreshBuffers(): void
+  if g:twiggy_refresh_buffers
+    if requires_buf_refresh
+      windo call Bufrefresh()
+    endif
+    requires_buf_refresh = 1
+  endif
+enddef
+
+# -----------------------------------------------------------------------------
+# Syntax helpers moved out of Render() because Vim9 def functions cannot safely
+# define nested functions in the same legacy style.
+# -----------------------------------------------------------------------------
+def RenderRemote(conceal_remote: bool, remote: string, remote_type: string): void
+  if conceal_remote && !empty(remote)
+    var parts: list<string> = split(remote, '/')
+    var prefix: string
+    var name: string
+    if len(parts) < 3
+      prefix = parts[0] .. '/'
+      name = join(parts[1 :], '/')
+    else
+      prefix = join(parts[0 : 1], '/') .. '/'
+      name = join(parts[2 :], '/')
+    endif
+
+    execute 'syntax match TwiggyPrivateBranchCurrent' .. remote_type .. ' /\v' .. branch_marker_vmagic.remote .. escape(remote, '\/\') .. '$/ contains=TwiggyPrivateBranchCurrent' .. remote_type .. 'Prefix,TwiggyPrivateBranchCurrent' .. remote_type .. 'Name'
+    execute 'syntax match TwiggyPrivateBranchCurrent' .. remote_type .. 'Prefix /\V' .. escape(branch_marker.remote .. prefix, '\/') .. '/ contained conceal contains=TwiggyPrivateBranchPrefix nextgroup=TwiggyPrivateBranchCurrent' .. remote_type .. 'Name'
+    execute 'syntax match TwiggyPrivateBranchCurrent' .. remote_type .. 'Name /\V' .. escape(name, '\/\') .. '/ contained'
+  elseif !conceal_remote && !empty(remote)
+    var parts: list<string> = split(remote, '/')
+    var prefix: string = parts[0] .. '/'
+    var name: string = join(parts[1 :], '/')
+
+    execute 'syntax match TwiggyPrivateBranchCurrent' .. remote_type .. ' /\v' .. branch_marker_vmagic.remote .. escape(remote, '\/\') .. '$/ contains=TwiggyPrivateBranchCurrent' .. remote_type .. 'Prefix,TwiggyPrivateBranchCurrent' .. remote_type .. 'Name'
+    execute 'syntax match TwiggyPrivateBranchCurrent' .. remote_type .. 'Prefix /\V' .. escape(branch_marker.remote .. prefix, '\/') .. '/ contained conceal contains=TwiggyPrivateBranchPrefix nextgroup=TwiggyPrivateBranchCurrent' .. remote_type .. 'Name'
+    execute 'syntax match TwiggyPrivateBranchCurrent' .. remote_type .. 'Name /\V' .. escape(name, '\/\') .. '/ contained'
+  endif
+enddef
+
+def RenderBranches(current: string, upstream: string, push: string, conceal_local: bool, conceal_remote: bool): void
+  syntax clear TwiggyPrivateBranchCurrentName
+  syntax clear TwiggyPrivateBranchCurrentUpstreamName
+  syntax clear TwiggyPrivateBranchCurrentPushName TwiggyPush
+  syntax clear TwiggyPrivateBranchCurrentUpstreamPushName TwiggyUpstreamPush
+  syntax clear TwiggyPrivateBranchCurrent Identifier
+
+  execute 'syntax region TwiggyPrivateBranch start=/\v' .. branch_marker_vmagic.local .. '/ end=/\v\S+/ contains=TwiggyPrivateBranchLocalPrefix,TwiggyPrivateBranchLocalName oneline'
+  execute 'syntax region TwiggyPrivateRemoteBranch start=/\v' .. branch_marker_vmagic.remote .. '/ end=/\v\S+/ contains=TwiggyPrivateBranchRemotePrefix,TwiggyPrivateBranchRemoteName oneline'
+
+  execute 'syntax match TwiggyPrivateBranchLocalPrefix /\v' .. branch_marker_vmagic.local .. '/ contained conceal nextgroup=TwiggyPrivateBranchLocalName contains=TwiggyPrivateBranchPrefix'
+  if conceal_local
+    execute 'syntax match TwiggyPrivateBranchLocalPrefix /\v' .. branch_marker_vmagic.local .. '[-_[:alnum:].]+\// contained conceal nextgroup=TwiggyPrivateBranchLocalName contains=TwiggyPrivateBranchPrefix'
+  endif
+  syntax match TwiggyPrivateBranchLocalName /\v[-_[:alnum:].\/]+/ contained
+
+  execute 'syntax match TwiggyPrivateBranchRemotePrefix /\v' .. branch_marker_vmagic.remote .. '/ contained conceal nextgroup=TwiggyPrivateBranchRemoteName contains=TwiggyPrivateBranchPrefix'
+  if conceal_remote
+    execute 'syntax match TwiggyPrivateBranchRemotePrefix /\v' .. branch_marker_vmagic.remote .. '([-_[:alnum:].]+\/){1,2}/ contained conceal nextgroup=TwiggyPrivateBranchRemoteName contains=TwiggyPrivateBranchPrefix'
+  else
+    execute 'syntax match TwiggyPrivateBranchRemotePrefix /\v' .. branch_marker_vmagic.remote .. '([-_[:alnum:].]+\/)/ contained conceal nextgroup=TwiggyPrivateBranchRemoteName contains=TwiggyPrivateBranchPrefix'
+  endif
+  syntax match TwiggyPrivateBranchRemoteName /\v[-_[:alnum:].\/]+/ contained
+
+  if conceal_local && !empty(current)
+    var parts = split(current, '/')
+    if len(parts) < 2
+      execute 'syntax match TwiggyPrivateBranchCurrent ''\v' .. branch_marker_vmagic.local .. current .. '$'' contains=TwiggyPrivateBranchCurrentPrefix,TwiggyPrivateBranchCurrentName'
+      execute 'syntax match TwiggyPrivateBranchCurrentPrefix /\V' .. escape(branch_marker.local, '\/') .. '/ contained conceal contains=TwiggyPrivateBranchPrefix nextgroup=TwiggyPrivateBranchCurrentName'
+      execute 'syntax match TwiggyPrivateBranchCurrentName /\V' .. current .. '/ contained'
+    else
+      var prefix = parts[0] .. '/'
+      var name = join(parts[1 :], '/')
+      execute 'syntax match TwiggyPrivateBranchCurrent /\v' .. branch_marker_vmagic.local .. escape(current, '\/\') .. '$/ contains=TwiggyPrivateBranchCurrentPrefix,TwiggyPrivateBranchCurrentName'
+      execute 'syntax match TwiggyPrivateBranchCurrentPrefix /\V' .. escape(branch_marker.local .. prefix, '\/') .. '/ contained conceal contains=TwiggyPrivateBranchPrefix nextgroup=TwiggyPrivateBranchCurrentName'
+      execute 'syntax match TwiggyPrivateBranchCurrentName /\V' .. escape(name, '\/\') .. '/ contained'
+    endif
+  elseif !conceal_local && !empty(current)
+    execute 'syntax match TwiggyPrivateBranchCurrent /\v' .. branch_marker_vmagic.local .. escape(current, '\/\') .. '$/ contains=TwiggyPrivateBranchCurrentPrefix,TwiggyPrivateBranchCurrentName'
+    execute 'syntax match TwiggyPrivateBranchCurrentPrefix /\V' .. escape(branch_marker.local, '\/') .. '/ contained conceal contains=TwiggyPrivateBranchPrefix nextgroup=TwiggyPrivateBranchCurrentName'
+    execute 'syntax match TwiggyPrivateBranchCurrentName /\V' .. escape(current, '\/\') .. '/ contained'
+  endif
+
+  if upstream ==# push
+    RenderRemote(conceal_remote, upstream, 'UpstreamPush')
+  else
+    RenderRemote(conceal_remote, upstream, 'Upstream')
+    RenderRemote(conceal_remote, push, 'Push')
+  endif
+
+  execute 'syntax match TwiggyPrivateBranchPrefix /\v' .. branch_marker_vmagic.local .. '/ contained conceal'
+  execute 'syntax match TwiggyPrivateBranchPrefix /\v' .. branch_marker_vmagic.remote .. '/ contained conceal'
+enddef
+
+def Dot(): string
+  var branch = BranchUnderCursor()
+  return ':Git  ' .. branch.fullname .. "\<C-Left>\<Left>"
+enddef
+
+# -----------------------------------------------------------------------------
+# Main renderer
+# -----------------------------------------------------------------------------
+def Render(): void
+  redraw
+
+  if exists('b:git_dir') && &filetype !=# 'twiggy'
+    t:twiggy_git_dir = b:git_dir
+    t:twiggy_git_cmd = g:FugitiveShellCommand()
+  elseif !exists('t:twiggy_git_cmd')
+    echo 'Not a git repository'
+    return
+  endif
+
+  if !exists('t:twiggy_bufnr') || !(exists('t:twiggy_bufnr') && t:twiggy_bufnr == bufnr(''))
+    var fname: string = 'twiggy://' .. t:twiggy_git_dir .. '/branches'
+    if &filetype ==# 'twiggyqh'
+      execute 'silent keepalt edit ' .. fname
+    else
+      if g:twiggy_split_direction ==# 'horizontal'
+        execute('silent keepalt ' .. g:twiggy_split_position .. ' :' .. g:twiggy_num_rows .. 'split ' .. fname)
+      else
+        execute('silent keepalt ' .. g:twiggy_split_position .. ' :' .. g:twiggy_num_columns .. 'vsplit ' .. fname)
+      endif
+    endif
+    setlocal filetype=twiggy buftype=nofile bufhidden=delete
+    setlocal nonumber nowrap lisp
+    if exists('+relativenumber')
+      setlocal norelativenumber
+    endif
+    t:twiggy_bufnr = bufnr('')
+  endif
+
+  if g:twiggy_enable_quickhelp
+    nnoremap <buffer> <silent> g? <ScriptCmd>Quickhelp()<CR>
+  endif
+
+  autocmd! BufWinLeave twiggy://*
+      \ if exists('t:twiggy_bufnr') |
+      \   unlet! t:twiggy_bufnr |
+      \   unlet! t:twiggy_git_dir |
+      \   unlet! t:twiggy_git_cmd |
+      \   unlet! t:twiggy_git_mode |
+      \ endif
+
+  if NoCommits()
+    set modifiable
+    execute('silent 1,$delete _')
+    append(0, 'No commits')
+    delete _
+    set nomodifiable
+    return
+  endif
+
+  t:twiggy_git_mode = GetGitMode()
+
+  var output: list<string> = []
+
+  if ShowingFullUi() && !AttnMode()
+	const suffix: string = GetVim9Indicator()
+	extend(output, [$"Twiggy\tHelp: g?{empty(suffix) ? '' : "\t"}{suffix}"])
+  endif
+
+  if AttnMode()
+    var view: string = {
+      rebase: 'RebaseView',
+      merge: 'MergeView',
+      ['cherry-pick']: 'CherryPickView',
+      stash: 'StashView',
+    }[t:twiggy_git_mode]
+    extend(output, call(view, []))
+  else
+    extend(output, StandardView())
+  endif
+
+  if g:twiggy_adapt_columns && g:twiggy_split_direction !=# 'horizontal'
+    var cols: number = 0
+    for line_ in output
+      var line_length: number = len(line_)
+      if line_length > cols
+        cols = line_length
+      endif
+    endfor
+    execute 'vertical resize ' .. (cols + 3)
+  endif
+
+  set modifiable
+  execute('silent :1,$delete _')
+  append(0, output)
+  normal! G
+  delete _
+  normal! gg
+
+  setlocal nomodified nomodifiable noswapfile winfixwidth
+
+  if AttnMode()
+    if t:twiggy_git_mode ==# 'rebase'
+      Mapping('c', 'Continue', ['rebase'])
+      Mapping('s', 'Skip', [])
+      Mapping('a', 'Abort', ['rebase'])
+    elseif t:twiggy_git_mode ==# 'merge'
+      Mapping('a', 'Abort', ['merge'])
+      Mapping('c', 'Continue', ['merge'])
+    elseif t:twiggy_git_mode ==# 'cherry-pick'
+      Mapping('c', 'Continue', ['cherry-pick'])
+      Mapping('a', 'Abort', ['cherry-pick'])
+    elseif t:twiggy_git_mode ==# 'stash'
+      Mapping('c', 'Continue', ['stash'])
+      Mapping('a', 'Abort', ['stash'])
+    endif
+
+    syntax match TwiggyAttnModeMapping "\v%3c(s|c|a)"
+    highlight link TwiggyAttnModeMapping Identifier
+    syntax match TwiggyAttnModeTitle "\v^(rebase|merge|cherry pick) in progress"
+    syntax match TwiggyAttnModeTitle "\v^stash conflicts"
+    highlight link TwiggyAttnModeTitle Type
+    syntax match TwiggyAttnModeInstruction "\v^from this window:"
+    highlight link TwiggyAttnModeInstruction String
+    normal! 0
+    return
+  endif
+
+  highlight default link TwiggyCommitHash fugitiveHash
+  highlight default link TwiggyUpstreamPush Directory
+  highlight default link TwiggyPush Error
+  highlight default link TwiggyUpstream fugitiveSymbolicRef
+  ShowBranchDetails()
+  total_lines = len(output)
+
+  execute 'normal! ' .. init_line .. 'gg'
+  normal! 0
+
+  augroup twiggy
+    autocmd!
+    autocmd CursorMoved twiggy://* call ShowBranchDetails()
+    autocmd CursorMoved twiggy://* call UpdateLastBranchUnderCursor()
+    autocmd CmdlineLeave * if histget(':', -1) =~ '\v^G(it)?\s+(fetch|pull|push|switch|checkout|branch)' | call Refresh() |  t:branches_changed = 1 | endif
+    autocmd User FugitiveChanged if exists('t:branches_changed') && t:branches_changed |  t:branches_changed = 0 | call Refresh() | endif
+    autocmd User WorktreeCheckout call Refresh()
+  augroup END
+
+  nnoremap <buffer> <silent> cf<space> :<C-U>G fetch<space>
+  nnoremap <buffer> <silent> cm<space> :<C-U>G merge<space>
+  nnoremap <buffer> <silent> cb<space> :<C-U>G branch<space>
+  nnoremap <buffer> <silent> co<space> :<C-U>G checkout<space>
+  nnoremap <buffer> <silent> cz<space> :<C-U>G stash<space>
+  nnoremap <buffer> <silent> cs<space> :<C-U>G switch<space>
+  nnoremap <buffer> <silent> cr<space> :<C-U>G rebase<space>
+
+  nnoremap <buffer> <silent> )      <ScriptCmd>TraverseBranches('j', v:count1)<CR>
+  nnoremap <buffer> <silent> (      <ScriptCmd>TraverseBranches('k', v:count1)<CR>
+  nnoremap <buffer> <silent> j      <ScriptCmd>TraverseBranches('j', v:count1)<CR>
+  nnoremap <buffer> <silent> k      <ScriptCmd>TraverseBranches('k', v:count1)<CR>
+  nnoremap <buffer> <silent> <Down> <ScriptCmd>TraverseBranches('j', v:count1)<CR>
+  nnoremap <buffer> <silent> <Up>   <ScriptCmd>TraverseBranches('k', v:count1)<CR>
+  nnoremap <buffer> <silent> ][     <ScriptCmd>TraverseGroups('j', 1, v:count1)<CR>
+  nnoremap <buffer> <silent> []     <ScriptCmd>TraverseGroups('k', 1, v:count1)<CR>
+  nnoremap <buffer> <silent> ]]     <ScriptCmd>TraverseGroups('j', 0, v:count1)<CR>
+  nnoremap <buffer> <silent> [[     <ScriptCmd>TraverseGroups('k', 0, v:count1)<CR>
+  nnoremap <buffer> <silent> <C-N>  <ScriptCmd>TraverseGroups('j', 0, v:count1)<CR>
+  nnoremap <buffer> <silent> <C-P>  <ScriptCmd>TraverseGroups('k', 0, v:count1)<CR>
+  nnoremap <buffer> <silent> JL     <ScriptCmd>JumpToCurrentBranch()<CR>
+  nnoremap <buffer> <silent> JU     <ScriptCmd>JumpToCurrentUpstream()<CR>
+  nnoremap <buffer> <silent> JP     <ScriptCmd>JumpToCurrentPush()<CR>
+  if ShowingFullUi()
+    nnoremap <buffer> <silent> gg    :normal! 4gg<CR>
+  else
+    nnoremap <buffer> <silent> gg    :normal! 2gg<CR>
+  endif
+
+  Mapping('<CR>', 'Checkout', [1, 0])
+  Mapping('c', 'Checkout', [1, 0])
+  Mapping('C', 'Checkout', [0, 0])
+  Mapping('o', 'Checkout', [1, 0])
+  Mapping('O', 'Checkout', [0, 0])
+  Mapping('cm', 'Checkout', [1, 1])
+  Mapping('Cm', 'Checkout', [0, 1])
+  Mapping('om', 'Checkout', [1, 1])
+  Mapping('Om', 'Checkout', [0, 1])
+  Mapping('gc', 'CheckoutAs', [])
+  Mapping('go', 'CheckoutAs', [])
+  Mapping('dd', 'Delete', [1])
+  Mapping('yy', 'Yank', [])
+  Mapping('f', 'Fetch', [0])
+  Mapping('m', 'Merge', [0, ''])
+  Mapping('M', 'Merge', [1, ''])
+  Mapping('gm', 'Merge', [0, '--no-ff'])
+  Mapping('gM', 'Merge', [1, '--no-ff'])
+  Mapping('<space>R', 'Refresh', [])
+  Mapping('r', 'Rebase', [0, 0, 0])
+  Mapping('R', 'Rebase', [1, 0, 0])
+  Mapping('ri', 'Rebase', [0, 0, 1])
+  Mapping('Ri', 'Rebase', [1, 0, 1])
+  Mapping('gr', 'Rebase', [0, 1, 0])
+  Mapping('gR', 'Rebase', [1, 1, 0])
+  Mapping('gri', 'Rebase', [0, 1, 1])
+  Mapping('gRi', 'Rebase', [1, 1, 1])
+  Mapping('P', 'Push', [0, 0, g:twiggy_push_set_upstream])
+  Mapping('gP', 'Push', [1, 0, g:twiggy_push_set_upstream])
+  Mapping('!P', 'Push', [0, 1, g:twiggy_push_set_upstream])
+  Mapping('p', 'Pull', [])
+  Mapping(',', 'Rename', [])
+  Mapping('<<', 'Stash', [0])
+  Mapping('>>', 'Stash', [1])
+  Mapping('i', 'CycleSort', [0, 1])
+  Mapping('I', 'CycleSort', [0, -1])
+  Mapping('gi', 'CycleSort', [1, 1])
+  Mapping('gI', 'CycleSort', [1, -1])
+  Mapping('a', 'ToggleSlashSort', [1])
+  Mapping('ga', 'ToggleSlashSort', [0])
+
+  VisualMapping('d', 'Delete', [1])
+  VisualMapping('!d', 'ForceDelete', [])
+  VisualMapping('f', 'Fetch', [0])
+  VisualMapping('y', 'YankBranches', [])
+  VisualMapping('P', 'Push', [0, 0, g:twiggy_push_set_upstream])
+  VisualMapping('!P', 'Push', [0, 1, g:twiggy_push_set_upstream])
+
+  if g:twiggy_enable_remote_delete
+	  call Mapping('dP',       'DeleteRemote',           [])
+	  call VisualMapping('dP', 'DeleteRemote',           [])
+  endif
+
+  nnoremap <buffer> <expr> . <ScriptCmd>Dot()
+
+  if g:twiggy_git_log_command ==# ''
+    if exists(':GV')
+      g:twiggy_git_log_command = 'GV'
+    elseif exists(':Gitv')
+      g:twiggy_git_log_command = 'Gitv'
+    endif
+  endif
+
+  if g:twiggy_git_log_command !=# ''
+    nnoremap <buffer> gl :exec ':' . g:twiggy_git_log_command . ' ' . <ScriptCmd>BranchUnderCursor().fullname<CR>
+    nnoremap <buffer> gL :exec ':' . g:twiggy_git_log_command . ' ' . <ScriptCmd>BranchUnderCursor().fullname . '..'<CR>
+  endif
+
+  syntax clear
+
+  execute "syntax match TwiggyGroup '\\v(^[^\\ " .. icons.current .. "]+)'"
+  highlight default link TwiggyGroup Type
+
+  highlight default link TwiggyPrivateBranchCurrentName TwiggyCurrent
+  highlight default link TwiggyPrivateBranchCurrentUpstreamName TwiggyUpstream
+  highlight default link TwiggyPrivateBranchCurrentPushName TwiggyPush
+  highlight default link TwiggyPrivateBranchCurrentUpstreamPushName TwiggyUpstreamPush
+  highlight default link TwiggyPrivateBranchCurrent Identifier
+
+  &l:conceallevel = 2
+  &l:concealcursor = 'nvic'
+
+  var current_branch = GetCurrentBranch()
+  var upstream = GetCurrentBranchRemoteUpstream()
+  var push = GetCurrentBranchRemotePush()
+  RenderBranches(current_branch, upstream, push, g:twiggy_group_locals_by_slash, g:twiggy_group_remotes_by_slash)
+
+  execute "syntax match TwiggyCurrent '\\V\\%1c" .. icons.current .. "'"
+  highlight default link TwiggyCurrent Identifier
+
+  execute "syntax match TwiggyTracking '\\V\\%2v" .. icons.tracking .. "'"
+  highlight default link TwiggyTracking String
+
+  execute "syntax match TwiggyAhead '\\V\\%2v" .. icons.ahead .. "'"
+  highlight default link TwiggyAhead Type
+
+  execute "syntax match TwiggyBehind '\\V\\%2v" .. icons.behind .. "'"
+  highlight default link TwiggyBehind Type
+
+  execute "syntax match TwiggyAheadBehind '\\V\\%2v" .. icons.both .. "'"
+  highlight default link TwiggyAheadBehind Type
+
+  execute "syntax match TwiggyDetached '\\V\\%2v" .. icons.detached .. "'"
+  highlight default link TwiggyDetached ErrorMsg
+
+  execute "syntax match TwiggyUnmerged '\\V\\%1c" .. icons.unmerged .. "'"
+  highlight default link TwiggyUnmerged Identifier
+
+  execute "syntax match TwiggyWorktree '\\V\\%1c" .. icons.worktree .. "'"
+  highlight default link TwiggyWorktree Special
+
+  syntax match TwiggySortText '\v[[a-z]+]'
+  highlight default link TwiggySortText Comment
+
+  if ShowingFullUi()
+    syntax match TwiggyHeader "\v%1l^Twiggy" nextgroup=TwiggyHelpHint
+    highlight default link TwiggyHeader Title
+    syntax match TwiggyHelpHint "\v%1lHelp: " nextgroup = TwiggyHelpHintKey
+    highlight default link TwiggyHelpHint fugitiveHelpHeader
+    syntax match TwiggyHelpHintKey "\v%1l\g\?" nextgroup=Twiggy9Indicator
+    highlight default link TwiggyHelpHintKey fugitiveHelpTag
+
+	const indicator = GetVim9Indicator(true)
+    execute($'syntax match Twiggy9Indicator "{indicator}"')
+    highlight default link Twiggy9Indicator Comment
+  endif
+
+  execute "syntax match TwiggyDetachedText '\\v%3vHEAD\\@[a-z0-9]+'"
+  highlight default link TwiggyDetachedText Special
+
+  if exists('branches_not_in_reflog') && len(branches_not_in_reflog) > 0
+    execute "syntax match TwiggyNotInReflog '"
+        .. Gsub(Gsub(join(branches_not_in_reflog), '\(', ''), '\)', '')
+        .. "'"
+    highlight default link TwiggyNotInReflog Comment
+  endif
+enddef
+
+# -----------------------------------------------------------------------------
+# Quickhelp / refresh / entry points
+# -----------------------------------------------------------------------------
+def Quickhelp(): void
+  if &filetype !=# 'twiggy'
+    return
+  endif
+
+  t:twiggy_cached_git_dir = t:twiggy_git_dir
+
+  silent keepalt edit quickhelp
+  setlocal filetype=twiggyqh buftype=nofile bufhidden=delete
+  setlocal nonumber nowrap lisp
+  if exists('+relativenumber')
+    setlocal norelativenumber
+  endif
+  setlocal modifiable
+  execute('silent :1,$delete _')
+  b:git_dir = t:twiggy_cached_git_dir
+  unlet t:twiggy_cached_git_dir
+  var bufnr_ = bufnr('')
+
+  nnoremap <buffer> <silent> g? :Twiggy<CR>
+
+  append(0, QuickhelpView())
+  normal! G
+  delete _
+  normal! gg
+  setlocal nomodifiable
+
+  syntax clear
+  syntax match TwiggyQuickhelpMapping "\v%<9c[A-Za-z\-\?\^\<\>!,.]"
+  highlight link TwiggyQuickhelpMapping Identifier
+  syntax match TwiggyQuickhelpSpecial "\v\`[a-zA-Z]+\`"
+  highlight link TwiggyQuickhelpSpecial Special
+  syntax match TwiggyQuickhelpHeader "\v[A-Za-z ]+\n[=]+"
+  highlight link TwiggyQuickhelpHeader Title
+  syntax match TwiggyQuickhelpSectionHeader "\v[\-]+\n[[:alnum:],\/ \:]+\n[\-]+"
+  highlight link TwiggyQuickhelpSectionHeader String
+  syntax match TwiggyQuickhelpGitOption '--[:alnum:][[:alnum:]-]\+$'
+  highlight link TwiggyQuickhelpGitOption vimOption
+
+  if g:twiggy_show_full_ui
+    syntax match TwiggyQuickhelpRecommendation "\v^\*+\n[[:alnum:]\: ]+\n[a-z\:\- ]+"
+    highlight link TwiggyQuickhelpRecommendation String
+  endif
+enddef
+
+def Refresh(): bool
+  if exists('t:refreshing') || !exists('t:twiggy_bufnr') || (!exists('t:twiggy_git_dir') && !exists('b:git_dir'))
+    return true
+  endif
+
+  t:refreshing = 1
+
+  if &filetype !=# 'twiggy'
+    if exists('b:git_dir')
+      t:twiggy_git_dir = b:git_dir
+    endif
+    t:twiggy_git_cmd = g:FugitiveShellCommand()
+  endif
+
+  var twiggy_winid = bufwinid(t:twiggy_bufnr)
+
+  if &filetype !=# 'twiggy' && exists('*win_execute') && twiggy_winid != -1
+    win_execute(twiggy_winid, 'call Render()')
+  else
+    t:switch_buff = 0
+    if &filetype !=# 'twiggy'
+      t:old_bufnr = bufnr('')
+      t:line = line('.')
+      t:col = col('.')
+      t:switch_buff = 1
+      Buffocus(t:twiggy_bufnr)
+    endif
+
+    Render()
+
+    if t:switch_buff
+      Buffocus(t:old_bufnr)
+      cursor(t:line, t:col)
+    endif
+  endif
+
+  unlet t:refreshing
+  return true
+enddef
+
+export def Main(...args: list<any>): void
+  if len(args) == 0
+    Branch()
+  elseif args[0] ==# 'refresh'
+	  Refresh()
+  elseif args[0] ==# 'switch'
+    if len(args) < 2
+      echo 'Usage: :Twiggy switch BRANCH'
+      return
+    endif
+    call('Branch', args[1 :])
+  elseif args[0] ==# 'close'
+    CloseOutputBuffer()
+  else
+    echohl ErrorMsg
+    echo 'Unknown Twiggy subcommand: ' .. args[0]
+    echohl clear
+  endif
+enddef
+
+export def Branch(...args: list<any>): void
+  if len(args)
+    var current_branch = GetCurrentBranch()
+    var f = BranchExists(args[0]) ? '' : '-c '
+    GitCmd('switch ' .. f .. join(args), 0)
+    RenderOutputBuffer()
+    if exists('t:twiggy_bufnr')
+      Refresh()
+    endif
+    redraw
+    echo 'Moved from ' .. current_branch .. ' to ' .. args[0]
+  else
+    var twiggy_bufnr = exists('t:twiggy_bufnr') ? t:twiggy_bufnr : 0
+    if !twiggy_bufnr
+      Render()
+    else
+      if twiggy_bufnr == bufnr('')
+        Close()
+      else
+        t:twiggy_git_dir = b:git_dir
+        t:twiggy_git_cmd = g:FugitiveShellCommand()
+        Buffocus(t:twiggy_bufnr)
+      endif
+    endif
+  endif
+enddef
+
+def Close(): void
+  quit
+  redraw
+  echo ''
+enddef
+
+# -----------------------------------------------------------------------------
+# Sorting
+# -----------------------------------------------------------------------------
+def SortBranches(branch_type: string, int_: number): void
+  var sorts: list<string> = get(g:, 'twiggy_' .. branch_type .. '_branch_sorts')
+  var sort_name: string = get(g:, 'twiggy_' .. branch_type .. '_branch_sort')
+  var max_index: number = len(sorts) - int_
+  var new_index: number = index(sorts, sort_name) + int_
+
+  if new_index > max_index
+    new_index = 0
+  endif
+
+  g:['twiggy_' .. branch_type .. '_branch_sort'] = get(g:, 'twiggy_' .. branch_type .. '_branch_sorts')[new_index]
+enddef
+
+def CycleSort(alt: bool, int_: number): bool
+  var local = BranchUnderCursor().is_local
+  requires_buf_refresh = 0
+
+  if !alt
+    SortBranches(local ? 'local' : 'remote', int_)
+  else
+    SortBranches(local ? 'remote' : 'local', int_)
+  endif
+
+  sorted = 1
+  return true
+enddef
+
+def ToggleSlashSort(local: bool): bool
+  if local
+    g:twiggy_group_locals_by_slash = g:twiggy_group_locals_by_slash ? 0 : 1
+  else
+    g:twiggy_group_remotes_by_slash = g:twiggy_group_remotes_by_slash ? 0 : 1
+  endif
+  return true
+enddef
+
+# -----------------------------------------------------------------------------
+# Git actions
+# -----------------------------------------------------------------------------
+def ShowDirtyTreeOnCheckoutMessage(): void
+  var dirty_files = GitCmd('diff --name-only', 0)
+  var warning = 'error: Your local changes to the following files would be overwritten by checkout:'
+  last_output = [warning]
+  extend(last_output, map(dirty_files, (_, val) => "\t" .. val))
+  extend(last_output, [
+    'Please commit your changes or stash them before you switch branches.',
+    'Aborting',
+  ])
+  v:warningmsg = warning
+  RenderOutputBuffer()
+enddef
+
+def Checkout(track: bool, merge: bool): bool
+  var current_branch = GetCurrentBranch()
+  var switch_branch = BranchUnderCursor()
+  var merge_opt = merge ? ' --merge ' : ''
+
+  if DirtyTree() && !merge
+    ShowDirtyTreeOnCheckoutMessage()
+    return false
+  endif
+
+  if track && current_branch ==# switch_branch.fullname
+    echo 'Already on ' .. current_branch
+    return false
+  else
+    redraw
+    echo 'Moving from ' .. current_branch .. ' to ' .. switch_branch.fullname .. ellipsis
+    if track && !switch_branch.is_local
+      if index(map(GitCmd('branch --list', 0), (_, val) => val[2 :]), switch_branch.name) >= 0
+        GitCmd('switch ' .. merge_opt .. switch_branch.fullname, 0)
+      else
+        GitCmd('switch -c ' .. merge_opt .. switch_branch.name .. ' ' .. switch_branch.fullname, 0)
+      endif
+    elseif !track && !switch_branch.is_local
+      GitCmd('switch ' .. merge_opt .. switch_branch.fullname, 0)
+    elseif !track && switch_branch.is_local
+      GitCmd('switch ' .. merge_opt .. switch_branch.tracking, 0)
+    else
+      GitCmd('switch ' .. merge_opt .. switch_branch.fullname, 0)
+    endif
+
+    if v:shell_error != 0
+      RenderOutputBuffer()
+      return false
+    endif
+  endif
+
+  init_line = 0
+  last_branch_under_cursor = TwiggyBranch.new()
+  doautocmd User TwiggyCheckout
+  fugitive#ReloadStatus()
+  return true
+enddef
+
+def CheckoutAs(): bool
+  var branch = BranchUnderCursor()
+
+  redraw
+  var new_name = input('Checkout ' .. branch.name .. ' as: ', '', 'custom,TwiggyCompleteBranches')
+  if new_name !=# ''
+    if new_name ==# branch.name
+      redraw
+      echo branch.name .. ' already exists.'
+      return false
+    endif
+    GitCmd('switch -c ' .. new_name .. ' ' .. branch.fullname, 0)
+    redraw
+    echo 'Moving from ' .. branch.name .. ' to ' .. new_name .. ellipsis
+
+    if v:shell_error != 0
+      RenderOutputBuffer()
+      return false
+    endif
+
+    init_line = 0
+    last_branch_under_cursor = TwiggyBranch.new()
+
+    doautocmd User TwiggyCheckout
+    fugitive#ReloadStatus()
+    return true
+  endif
+
+  return false
+enddef
+
+def Yank(): bool
+  var branch = BranchUnderCursor()
+  var reg = empty(v:register) ? '"' : v:register
+  setreg(reg, branch.fullname)
+  return true
+enddef
+
+def YankBranches(lnum1: number, lnum2: number): void
+  var branches = BranchesInRange(lnum1, lnum2)
+  var reg = empty(v:register) ? '"' : v:register
+  setreg(reg, join(map(copy(branches), (_, val) => val.fullname), "\n"))
+enddef
+
+def Delete(confirm: bool=false): bool
+  var branch = BranchUnderCursor()
+
+  if branch.fullname ==# GetCurrentBranch()
+    return true
+  endif
+
+  init_line = branch.line
+
+  if branch.is_local
+    GitCmd('branch -d ' .. branch.fullname, 0)
+
+    if v:shell_error != 0 && confirm
+      last_output = []
+      return Confirm('Unmerged!  Force-delete local branch ' .. branch.fullname .. '?',
+        "GitCmd('branch -D " .. branch.fullname .. "', 0)", false)
+	endif
+	return v:shell_error == 0
+
+  else
+	if confirm
+        last_output = []
+		return Confirm('Force-delete remote branch ' .. branch.fullname .. '?',
+		  "GitCmd('branch -d -r " .. branch.fullname .. "', 0)", false)
+	else
+		GitCmd('branch -d -r ' .. branch.fullname, 0)
+	endif
+	return v:shell_error == 0
+
+  endif
+enddef
+
+def ForceDelete(): bool
+  var branch = BranchUnderCursor()
+
+  if branch.fullname ==# GetCurrentBranch()
+    return true
+  endif
+
+  init_line = branch.line
+
+  if branch.is_local
+    GitCmd('branch -D ' .. branch.fullname, 0)
+  else
+    GitCmd('branch -D -r ' .. branch.fullname, 0)
+  endif
+
+  return v:shell_error == 0
+enddef
+
+def DeleteRemote(): bool
+  var branch = BranchUnderCursor()
+  var group: string
+  var name: string
+  if branch.is_local
+    if branch.tracking ==# ''
+      redraw
+      echo branch.fullname .. ' has no tracking branch'
+      return false
+    endif
+    group = branch.remote
+    name = Sub(branch.tracking, group .. '/', '')
+  else
+    group = branch.group
+    name = branch.name
+  endif
+  return Confirm('WARNING! Delete branch ' .. name .. ' from remote repo: ' .. group .. '?',
+    "GitCmd('push --delete " .. group .. ' ' .. name .. "', 0)", false)
+enddef
+
+def Fetch(pull: bool): bool
+  var cmd = pull ? 'pull' : 'fetch'
+  var branch = BranchUnderCursor()
+  if branch.tracking !=# ''
+    var remote = split(branch.tracking, '/')[0]
+    GitCmd(cmd .. ' ' .. remote .. ' ' .. branch.fullname, 1)
+  else
+    redraw
+    echo branch.name .. ' is not a tracking branch'
+    return false
+  endif
+  return true
+enddef
+
+def Pull(): bool
+  return Fetch(1)
+enddef
+
+def Merge(remote: bool, flags: string): bool
+  var branch = BranchUnderCursor()
+
+  if remote
+    if branch.tracking ==# ''
+      v:warningmsg = 'No tracking branch for ' .. branch.fullname
+      return false
+    else
+      GitCmd('merge ' .. flags .. '  ' .. branch.tracking, 1)
+    endif
+  else
+    if branch.name ==# GetCurrentBranch()
+      v:warningmsg = 'Can''t merge into self'
+      return false
+    else
+      GitCmd('merge ' .. flags .. '  ' .. branch.fullname, 1)
+    endif
+  endif
+
+  return true
+enddef
+
+def Rebase(remote: bool, autostash: bool, interactive: bool): bool
+  var branch = BranchUnderCursor()
+  var gitcmd = autostash ? 'rebase --autostash ' : 'rebase '
+  var dispatch_opts = DispatchOpts.new()
+
+  if interactive
+    gitcmd ..= '-i '
+    dispatch_opts.no_dispatch = true
+  endif
+
+  if remote
+    if branch.tracking ==# ''
+      v:warningmsg = 'No tracking branch for ' .. branch.name
+      return false
+    else
+      GitCmd(gitcmd .. ' ' .. branch.tracking, 1, dispatch_opts)
+    endif
+  else
+    if branch.fullname ==# GetCurrentBranch()
+      v:warningmsg = 'Can''t rebase off of self'
+      return false
+    else
+      GitCmd(gitcmd .. ' ' .. branch.fullname, 1, dispatch_opts)
+    endif
+  endif
+
+  return true
+enddef
+
+def Continue(git_type: string): bool
+  if git_type ==? 'stash'
+    ContinueStash()
+  else
+    var dispatch_opts = DispatchOpts.new()
+    dispatch_opts.no_dispatch = true
+    GitCmd(git_type .. ' --continue', 1, dispatch_opts)
+  endif
+
+  redraw
+  fugitive#ReloadStatus()
+  return true
+enddef
+
+def Skip(): bool
+  var dispatch_opts = DispatchOpts.new()
+  dispatch_opts.no_dispatch = true
+  GitCmd('rebase --skip', 1, dispatch_opts)
+  redraw
+  fugitive#ReloadStatus()
+  return true
+enddef
+
+def Abort(git_type: string): bool
+  if git_type ==? 'stash'
+    AbortStash()
+  else
+    GitCmd(git_type .. ' --abort', 0)
+  endif
+  cclose
+  redraw
+  echo git_type .. ' aborted'
+  fugitive#ReloadStatus()
+  return true
+enddef
+
+def ContinueStash(): void
+  var dispatch_opts = DispatchOpts.new()
+  dispatch_opts.no_dispatch = true
+  GitCmd('commit', 1, dispatch_opts)
+enddef
+
+def AbortStash(): void
+  GitCmd('reset --merge', 0)
+enddef
+
+def Push(choose_upstream: bool, force: bool, set_upstream: bool): bool
+  var branch = BranchUnderCursor()
+
+  if !branch.is_local
+    v:warningmsg = "Can't push a remote branch"
+    return false
+  endif
+
+  requires_buf_refresh = 0
+
+  var remote_groups = GitCmd('remote', 0)
+  var flags: string = ''
+  if force
+    flags ..= ' --force-with-lease'
+  endif
+  if set_upstream
+    flags ..= ' --set-upstream'
+  endif
+
+  var group: string
+  if branch.tracking ==# '' && !choose_upstream
+    if g:twiggy_set_upstream
+      flags ..= ' -u'
+    endif
+    if len(remote_groups) > 1
+      redraw
+      group = input('Push to which remote?: ', '', 'custom,TwiggyCompleteRemotes')
+    elseif len(remote_groups) == 0
+      redraw
+      echo 'There are no remotes to push to'
+      return false
+    else
+      group = remote_groups[0]
+    endif
+  else
+    if choose_upstream
+      redraw
+      group = input('Push to which remote?: ', '', 'custom,TwiggyCompleteRemotes')
+    else
+      group = split(branch.tracking, '/')[0]
+    endif
+  endif
+
+  if index(remote_groups, group) < 0
+    v:warningmsg = 'Remote does not exist'
+    return false
+  else
+    var cmd = 'push ' .. flags .. ' ' .. group .. ' ' .. branch.fullname
+    if !force || !g:twiggy_prompted_force_push
+      GitCmd(cmd, 1)
+    else
+      return Confirm('Force push (with lease) to ' .. branch.tracking .. '?',
+        "GitCmd('" .. cmd .. "', 1)", false)
+    endif
+  endif
+
+  return true
+enddef
+
+def g:TwiggyCompleteRemotes(A: string, L: string, P: string): string
+  var remotes: string = ''
+  for remote in GitCmd('remote', 0)
+    if match(remote, '\v^' .. A) >= 0
+		remotes = remotes .. remote .. "\n"
+    endif
+  endfor
+  return remotes
+enddef
+
+def Rename(): bool
+  requires_buf_refresh = 0
+
+  var branch = BranchUnderCursor()
+  var new_name = input('Rename ' .. branch.fullname .. ' to: ', branch.fullname)
+  redraw
+  if !empty(new_name)
+    echo 'Renaming "' .. branch.fullname .. '" to "' .. new_name .. '"' .. ellipsis
+    GitCmd('branch -m ' .. branch.fullname .. ' ' .. new_name, 0)
+    if v:shell_error != 0
+      RenderOutputBuffer()
+      return false
+    endif
+    fugitive#ReloadStatus()
+  endif
+  return true
+enddef
+
+def Stash(pop: bool): bool
+  var pop_arg = pop ? ' pop' : ''
+  GitCmd('stash' .. pop_arg, 0)
+
+  redraw
+  if v:shell_error == 0
+    echo 'Stash' .. (pop ? ' popped!' : 'ed')
+  endif
+  return v:shell_error == 0
+enddef
+
+# -----------------------------------------------------------------------------
+# Fugitive integration
+# -----------------------------------------------------------------------------
+def CloseString(): string
+  if g:twiggy_close_on_fugitive_cmd
+    return 'call Close()'
+  else
+    return 'wincmd w'
+  endif
+enddef
+
+autocmd BufEnter twiggy://* execute 'command! -buffer Git ' .. CloseString() .. ' | silent <Cmd>Git<CR>'
+autocmd BufEnter twiggy://* execute 'command! -buffer Git commit ' .. CloseString() .. ' | silent <Cmd>Git commit<CR>'
+autocmd BufEnter twiggy://* execute 'command! -buffer Git blame  ' .. CloseString() .. ' | silent <Cmd>Git blame<CR>'
