@@ -461,7 +461,7 @@ def UpdateWorktreeBranches(): void
   for line_ in GitCmd('worktree list --porcelain', 0)
     if line_ =~# '^worktree '
       worktree_count += 1
-    elseif line_ =~# '^branch ' && worktree_count > 1
+    elseif line_ =~# '^branch ' && worktree_count >= 1
       var branchname = substitute(matchstr(line_, '^branch \zs.*'), '^refs/heads/', '', '')
       worktree_branches.Add(branchname)
     endif

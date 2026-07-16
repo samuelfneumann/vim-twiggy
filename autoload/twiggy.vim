@@ -401,7 +401,7 @@ function! s:update_worktree_branches() abort
   for line in s:git_cmd('worktree list --porcelain', 0)
     if line =~# '^worktree '
       let worktree_count += 1
-    elseif line =~# '^branch ' && worktree_count > 1
+    elseif line =~# '^branch ' && worktree_count >= 1
       let branchname = substitute(matchstr(line, '^branch \zs.*'), '^refs/heads/', '', '')
       let s:worktree_branches[branchname] = 1
     endif
