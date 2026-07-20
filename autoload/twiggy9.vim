@@ -1405,7 +1405,7 @@ def Render(): void
 	  call VisualMapping('dP', 'DeleteRemote',           [])
   endif
 
-  nnoremap <buffer> <expr> . <ScriptCmd>Dot()
+  nnoremap <buffer> <expr> . Dot()
 
   if g:twiggy_git_log_command ==# ''
     if exists(':GV')
