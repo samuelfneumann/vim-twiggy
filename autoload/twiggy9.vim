@@ -801,8 +801,13 @@ def QuickhelpView(): list<string>
     add(output, 'dP          delete from server')
   endif
   add(output, '.         :Git <cursor> <branch>')
-  add(output, '<<        stash')
-  add(output, '>>        pop stash')
+  add(output, 'czz       push stash ([count]: untracked/all)')
+  add(output, 'czw       push work-tree stash --keep-index')
+  add(output, 'czs       push stage stash --staged')
+  add(output, 'czA       apply stash')
+  add(output, 'cza       apply stash --index')
+  add(output, 'czP       pop stash')
+  add(output, 'czp       pop stash --index')
   add(output, '----------------------------')
   add(output, 'sorting, etc:')
   add(output, '----------------------------')
@@ -1384,8 +1389,13 @@ def Render(): void
   Mapping('!P', 'Push', [0, 1, g:twiggy_push_set_upstream])
   Mapping('p', 'Pull', [])
   Mapping(',', 'Rename', [])
-  Mapping('<<', 'Stash', [0])
-  Mapping('>>', 'Stash', [1])
+  Mapping('czz', 'Stash', ['push'])
+  Mapping('czw', 'Stash', ['keep-index'])
+  Mapping('czs', 'Stash', ['staged'])
+  Mapping('czA', 'Stash', ['apply'])
+  Mapping('cza', 'Stash', ['apply-index'])
+  Mapping('czP', 'Stash', ['pop'])
+  Mapping('czp', 'Stash', ['pop-index'])
   Mapping('i', 'CycleSort', [0, 1])
   Mapping('I', 'CycleSort', [0, -1])
   Mapping('gi', 'CycleSort', [1, 1])
@@ -2045,13 +2055,31 @@ def Rename(): bool
   return true
 enddef
 
-def Stash(pop: bool): bool
-  var pop_arg = pop ? ' pop' : ''
-  GitCmd('stash' .. pop_arg, 0)
+def Stash(action: string): bool
+  if action ==# 'staged' && v:count != 0
+    echoerr 'czs does not accept a count'
+    return false
+  elseif index(['push', 'keep-index'], action) >= 0 && v:count > 2
+    echoerr 'Stash push count must be 1 or 2'
+    return false
+  endif
+
+  var push_flag = v:count == 1 ? ' --include-untracked' : v:count == 2 ? ' --all' : ''
+  var stash_ref = v:count != 0 ? ' stash@{' .. v:count .. '}' : ''
+  var commands = {
+    push: 'stash push' .. push_flag,
+    keep-index: 'stash push --keep-index' .. push_flag,
+    staged: 'stash push --staged',
+    apply: 'stash apply' .. stash_ref,
+    apply-index: 'stash apply --index' .. stash_ref,
+    pop: 'stash pop' .. stash_ref,
+    pop-index: 'stash pop --index' .. stash_ref,
+  }
+  GitCmd(commands[action], 0)
 
   redraw
   if v:shell_error == 0
-    echo 'Stash' .. (pop ? ' popped!' : 'ed')
+    echo 'Stash updated!'
   endif
   return v:shell_error == 0
 enddef

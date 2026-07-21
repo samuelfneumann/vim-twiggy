@@ -440,11 +440,28 @@ gL                Git log on the range of the commits between the branch
                   under the cursor and the current branch
 
                   Stashing~
-                                                *twiggy->>*
-<<                `git stash`
+                                                *twiggy-czz*
+czz               Push stash.  Pass a [count] of 1 to include untracked files
+                  or 2 to include ignored files as well.
 
-                                                *twiggy-<<*
->>                `git stash pop`
+                                                *twiggy-czw*
+czw               Push stash of the work-tree, preserving the index.  Accepts
+                  the same counts as czz.
+
+                                                *twiggy-czs*
+czs               Push stash of the stage.  Does not accept a count.
+
+                                                *twiggy-czA*
+czA               Apply topmost stash, or stash@{count}.
+
+                                                *twiggy-cza*
+cza               Apply topmost stash, or stash@{count}, preserving the index.
+
+                                                *twiggy-czP*
+czP               Pop topmost stash, or stash@{count}.
+
+                                                *twiggy-czp*
+czp               Pop topmost stash, or stash@{count}, preserving the index.
 
                                                 *twiggy-cz<space>*
 cz<space>         Populate command line with "G stash "

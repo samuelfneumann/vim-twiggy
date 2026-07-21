@@ -764,8 +764,13 @@ function! s:quickhelp_view() abort
   call add(output, 'P         push selected')
   call add(output, '!P        push selected --force-with-lease')
   call add(output, '.         :Git <cursor> <branch>')
-  call add(output, '<<        stash')
-  call add(output, '>>        pop stash')
+  call add(output, 'czz       push stash ([count]: untracked/all)')
+  call add(output, 'czw       push work-tree stash --keep-index')
+  call add(output, 'czs       push stage stash --staged')
+  call add(output, 'czA       apply stash')
+  call add(output, 'cza       apply stash --index')
+  call add(output, 'czP       pop stash')
+  call add(output, 'czp       pop stash --index')
   call add(output, '----------------------------')
   call add(output, 'sorting, etc:')
   call add(output, '----------------------------')
@@ -1304,8 +1309,13 @@ function! s:Render() abort
   call s:visual_mapping('P',       'Push',             [0, 0, g:twiggy_push_set_upstream])
   call s:visual_mapping('!P',      'Push',             [0, 1, g:twiggy_push_set_upstream])
   call s:mapping(',',       'Rename',           [])
-  call s:mapping('<<',      'Stash',            [0])
-  call s:mapping('>>',      'Stash',            [1])
+  call s:mapping('czz',     'Stash',            ['push'])
+  call s:mapping('czw',     'Stash',            ['keep-index'])
+  call s:mapping('czs',     'Stash',            ['staged'])
+  call s:mapping('czA',     'Stash',            ['apply'])
+  call s:mapping('cza',     'Stash',            ['apply-index'])
+  call s:mapping('czP',     'Stash',            ['pop'])
+  call s:mapping('czp',     'Stash',            ['pop-index'])
   call s:mapping('i',       'CycleSort',        [0, 1])
   call s:mapping('I',       'CycleSort',        [0, -1])
   call s:mapping('gi',      'CycleSort',        [1, 1])
@@ -2070,14 +2080,31 @@ function! s:Rename() abort
 endfunction
 
 "     {{{3 Stash
-function! s:Stash(pop) abort
-  let pop = a:pop ? ' pop' : ''
-  call s:git_cmd('stash' . pop, 0)
+function! s:Stash(action) abort
+  if a:action ==# 'staged' && v:count
+    echoerr 'czs does not accept a count'
+    return 1
+  elseif index(['push', 'keep-index'], a:action) >= 0 && v:count > 2
+    echoerr 'Stash push count must be 1 or 2'
+    return 1
+  endif
+
+  let commands = {
+        \ 'push': 'stash push' . (v:count == 1 ? ' --include-untracked' : v:count == 2 ? ' --all' : ''),
+        \ 'keep-index': 'stash push --keep-index' . (v:count == 1 ? ' --include-untracked' : v:count == 2 ? ' --all' : ''),
+        \ 'staged': 'stash push --staged',
+        \ 'apply': 'stash apply' . (v:count ? ' stash@{' . v:count . '}' : ''),
+        \ 'apply-index': 'stash apply --index' . (v:count ? ' stash@{' . v:count . '}' : ''),
+        \ 'pop': 'stash pop' . (v:count ? ' stash@{' . v:count . '}' : ''),
+        \ 'pop-index': 'stash pop --index' . (v:count ? ' stash@{' . v:count . '}' : ''),
+        \ }
+  call s:git_cmd(commands[a:action], 0)
 
   redraw
   if !v:shell_error
-    echo 'Stash' . (a:pop ? ' popped!' : 'ed')
+    echo 'Stash updated!'
   endif
+  return v:shell_error
 endfunction
 
 " {{{1 Fugitive
