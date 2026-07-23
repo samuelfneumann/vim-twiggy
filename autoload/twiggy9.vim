@@ -781,8 +781,8 @@ def QuickhelpView(): list<string>
   add(output, 'M         merge remote')
   add(output, 'gm        `m` --no-ff')
   add(output, 'gM        `M` --no-ff')
-  add(output, 'r         rebase')
-  add(output, 'R         rebase remote')
+  add(output, 'rr        rebase')
+  add(output, 'RR        rebase remote')
   add(output, 'gri       `r` -i --autostash')
   add(output, 'gRi       `R` -i --autostash')
   add(output, 'P         push')
@@ -1286,6 +1286,7 @@ def Render(): void
     if t:twiggy_git_mode ==# 'rebase'
       Mapping('c', 'Continue', ['rebase'])
       Mapping('s', 'Skip', [])
+      Mapping('e', 'Edit', [])
       Mapping('a', 'Abort', ['rebase'])
     elseif t:twiggy_git_mode ==# 'merge'
       Mapping('a', 'Abort', ['merge'])
@@ -1334,7 +1335,8 @@ def Render(): void
   nnoremap <buffer> <silent> co<space> :<C-U>G checkout<space>
   nnoremap <buffer> <silent> cz<space> :<C-U>G stash<space>
   nnoremap <buffer> <silent> cs<space> :<C-U>G switch<space>
-  nnoremap <buffer> <silent> cr<space> :<C-U>G rebase<space>
+  nnoremap <buffer> <silent> cr<space> :<C-U>G revert<space>
+  nnoremap <buffer> <silent> r<space> :<C-U>G rebase<space>
 
   nnoremap <buffer> <silent> )      <ScriptCmd>TraverseBranches('j', v:count1)<CR>
   nnoremap <buffer> <silent> (      <ScriptCmd>TraverseBranches('k', v:count1)<CR>
@@ -1376,8 +1378,8 @@ def Render(): void
   Mapping('gm', 'Merge', [0, '--no-ff'])
   Mapping('gM', 'Merge', [1, '--no-ff'])
   Mapping('<space>R', 'Refresh', [])
-  Mapping('r', 'Rebase', [0, 0, 0])
-  Mapping('R', 'Rebase', [1, 0, 0])
+  Mapping('rr', 'Rebase', [0, 0, 0])
+  Mapping('RR', 'Rebase', [1, 0, 0])
   Mapping('ri', 'Rebase', [0, 0, 1])
   Mapping('Ri', 'Rebase', [1, 0, 1])
   Mapping('gr', 'Rebase', [0, 1, 0])
@@ -1402,6 +1404,8 @@ def Render(): void
   Mapping('gI', 'CycleSort', [1, -1])
   Mapping('a', 'ToggleSlashSort', [1])
   Mapping('ga', 'ToggleSlashSort', [0])
+
+  Mapping('gq', 'Close', [])
 
   VisualMapping('d', 'Delete', [1])
   VisualMapping('!d', 'ForceDelete', [])
@@ -1931,6 +1935,15 @@ def Continue(git_type: string): bool
     GitCmd(git_type .. ' --continue', 1, dispatch_opts)
   endif
 
+  redraw
+  fugitive#ReloadStatus()
+  return true
+enddef
+
+def Edit(): bool
+  var dispatch_opts = DispatchOpts.new()
+  dispatch_opts.no_dispatch = true
+  GitCmd('rebase --edit-todo', 1, dispatch_opts)
   redraw
   fugitive#ReloadStatus()
   return true

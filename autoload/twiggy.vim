@@ -735,8 +735,8 @@ function! s:quickhelp_view() abort
   call add(output, 'M         merge remote')
   call add(output, 'gm        `m` --no-ff')
   call add(output, 'gM        `M` --no-ff')
-  call add(output, 'r         rebase')
-  call add(output, 'R         rebase remote')
+  call add(output, 'rr        rebase')
+  call add(output, 'RR        rebase remote')
   call add(output, 'gri       `r` -i --autostash')
   call add(output, 'gRi       `R` -i --autostash')
   call add(output, 'P         push')
@@ -1189,6 +1189,7 @@ function! s:Render() abort
     if t:twiggy_git_mode ==# 'rebase'
       call s:mapping('c', 'Continue', ['rebase'])
       call s:mapping('s', 'Skip', [])
+      call s:mapping('e', 'Edit', [])
       call s:mapping('a', 'Abort', ['rebase'])
     elseif t:twiggy_git_mode ==# 'merge'
       call s:mapping('a', 'Abort', ['merge'])
@@ -1245,7 +1246,8 @@ function! s:Render() abort
   nnoremap <buffer> <silent> co<space> :<C-U>G checkout<space>
   nnoremap <buffer> <silent> cz<space> :<C-U>G stash<space>
   nnoremap <buffer> <silent> cs<space> :<C-U>G switch<space>
-  nnoremap <buffer> <silent> cr<space> :<C-U>G rebase<space>
+  nnoremap <buffer> <silent> cr<space> :<C-U>G revert<space>
+  nnoremap <buffer> <silent> r<space> :<C-U>G rebase<space>
 
   " These need v:count
   nnoremap <buffer> <silent> )		<cmd>call <SID>traverse_branches('j', v:count1)<CR>
@@ -1289,8 +1291,8 @@ function! s:Render() abort
   call s:mapping('gm',      'Merge',            [0, '--no-ff'])
   call s:mapping('gM',      'Merge',            [1, '--no-ff'])
   call s:mapping('<space>R','Refresh',          [])
-  call s:mapping('r',       'Rebase',           [0, 0, 0])
-  call s:mapping('R',       'Rebase',           [1, 0, 0])
+  call s:mapping('rr',      'Rebase',           [0, 0, 0])
+  call s:mapping('RR',      'Rebase',           [1, 0, 0])
   call s:mapping('ri',      'Rebase',           [0, 0, 1])
   call s:mapping('Ri',      'Rebase',           [1, 0, 1])
   call s:mapping('gr',      'Rebase',           [0, 1, 0])
@@ -1322,6 +1324,8 @@ function! s:Render() abort
   call s:mapping('gI',      'CycleSort',        [1, -1])
   call s:mapping('a',       'ToggleSlashSort',  [1])
   call s:mapping('ga',      'ToggleSlashSort',  [0])
+
+  call s:mapping('gq',      'Close',  [])
 
   if get(g:, 'twiggy_enable_remote_delete', 0)
 	  call s:mapping('dP',       'DeleteRemote',           [])
@@ -1958,6 +1962,14 @@ function! s:Continue(type) abort
   else
     call s:git_cmd(a:type . ' --continue', 1, {"no_dispatch": 1})
   endif
+
+  redraw
+  call fugitive#ReloadStatus()
+endfunction
+
+"     {{{3 Edit Rebase
+function! s:Edit() abort
+  call s:git_cmd('rebase --edit-todo', 1, {"no_dispatch": 1})
 
   redraw
   call fugitive#ReloadStatus()
