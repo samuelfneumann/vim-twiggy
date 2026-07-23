@@ -301,7 +301,7 @@ C                 Checkout the remote branch under the cursor in detached
 o                 Same as c
 
                                                 *twiggy-om*
-o                 Same as o but with `--merge`
+om                Same as o but with `--merge`
 
                                                 *twiggy-O*
 O                 Same as C
