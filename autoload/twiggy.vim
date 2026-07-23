@@ -735,8 +735,8 @@ function! s:quickhelp_view() abort
   call add(output, 'M         merge remote')
   call add(output, 'gm        `m` --no-ff')
   call add(output, 'gM        `M` --no-ff')
-  call add(output, 'r         rebase')
-  call add(output, 'R         rebase remote')
+  call add(output, 'rr        rebase')
+  call add(output, 'RR        rebase remote')
   call add(output, 'gri       `r` -i --autostash')
   call add(output, 'gRi       `R` -i --autostash')
   call add(output, 'P         push')
@@ -764,8 +764,13 @@ function! s:quickhelp_view() abort
   call add(output, 'P         push selected')
   call add(output, '!P        push selected --force-with-lease')
   call add(output, '.         :Git <cursor> <branch>')
-  call add(output, '<<        stash')
-  call add(output, '>>        pop stash')
+  call add(output, 'czz       push stash ([count]: untracked/all)')
+  call add(output, 'czw       push work-tree stash --keep-index')
+  call add(output, 'czs       push stage stash --staged')
+  call add(output, 'czA       apply stash')
+  call add(output, 'cza       apply stash --index')
+  call add(output, 'czP       pop stash')
+  call add(output, 'czp       pop stash --index')
   call add(output, '----------------------------')
   call add(output, 'sorting, etc:')
   call add(output, '----------------------------')
@@ -1184,6 +1189,7 @@ function! s:Render() abort
     if t:twiggy_git_mode ==# 'rebase'
       call s:mapping('c', 'Continue', ['rebase'])
       call s:mapping('s', 'Skip', [])
+      call s:mapping('e', 'Edit', [])
       call s:mapping('a', 'Abort', ['rebase'])
     elseif t:twiggy_git_mode ==# 'merge'
       call s:mapping('a', 'Abort', ['merge'])
@@ -1240,7 +1246,8 @@ function! s:Render() abort
   nnoremap <buffer> <silent> co<space> :<C-U>G checkout<space>
   nnoremap <buffer> <silent> cz<space> :<C-U>G stash<space>
   nnoremap <buffer> <silent> cs<space> :<C-U>G switch<space>
-  nnoremap <buffer> <silent> cr<space> :<C-U>G rebase<space>
+  nnoremap <buffer> <silent> cr<space> :<C-U>G revert<space>
+  nnoremap <buffer> <silent> r<space> :<C-U>G rebase<space>
 
   " These need v:count
   nnoremap <buffer> <silent> )		<cmd>call <SID>traverse_branches('j', v:count1)<CR>
@@ -1284,8 +1291,8 @@ function! s:Render() abort
   call s:mapping('gm',      'Merge',            [0, '--no-ff'])
   call s:mapping('gM',      'Merge',            [1, '--no-ff'])
   call s:mapping('<space>R','Refresh',          [])
-  call s:mapping('r',       'Rebase',           [0, 0, 0])
-  call s:mapping('R',       'Rebase',           [1, 0, 0])
+  call s:mapping('rr',      'Rebase',           [0, 0, 0])
+  call s:mapping('RR',      'Rebase',           [1, 0, 0])
   call s:mapping('ri',      'Rebase',           [0, 0, 1])
   call s:mapping('Ri',      'Rebase',           [1, 0, 1])
   call s:mapping('gr',      'Rebase',           [0, 1, 0])
@@ -1304,14 +1311,21 @@ function! s:Render() abort
   call s:visual_mapping('P',       'Push',             [0, 0, g:twiggy_push_set_upstream])
   call s:visual_mapping('!P',      'Push',             [0, 1, g:twiggy_push_set_upstream])
   call s:mapping(',',       'Rename',           [])
-  call s:mapping('<<',      'Stash',            [0])
-  call s:mapping('>>',      'Stash',            [1])
+  call s:mapping('czz',     'Stash',            ['push'])
+  call s:mapping('czw',     'Stash',            ['keep-index'])
+  call s:mapping('czs',     'Stash',            ['staged'])
+  call s:mapping('czA',     'Stash',            ['apply'])
+  call s:mapping('cza',     'Stash',            ['apply-index'])
+  call s:mapping('czP',     'Stash',            ['pop'])
+  call s:mapping('czp',     'Stash',            ['pop-index'])
   call s:mapping('i',       'CycleSort',        [0, 1])
   call s:mapping('I',       'CycleSort',        [0, -1])
   call s:mapping('gi',      'CycleSort',        [1, 1])
   call s:mapping('gI',      'CycleSort',        [1, -1])
   call s:mapping('a',       'ToggleSlashSort',  [1])
   call s:mapping('ga',      'ToggleSlashSort',  [0])
+
+  call s:mapping('gq',      'Close',  [])
 
   if get(g:, 'twiggy_enable_remote_delete', 0)
 	  call s:mapping('dP',       'DeleteRemote',           [])
@@ -1953,6 +1967,14 @@ function! s:Continue(type) abort
   call fugitive#ReloadStatus()
 endfunction
 
+"     {{{3 Edit Rebase
+function! s:Edit() abort
+  call s:git_cmd('rebase --edit-todo', 1, {"no_dispatch": 1})
+
+  redraw
+  call fugitive#ReloadStatus()
+endfunction
+
 "     {{{3 Skip Rebase
 function! s:Skip() abort
   call s:git_cmd('rebase --skip', 1, {"no_dispatch": 1})
@@ -2070,14 +2092,31 @@ function! s:Rename() abort
 endfunction
 
 "     {{{3 Stash
-function! s:Stash(pop) abort
-  let pop = a:pop ? ' pop' : ''
-  call s:git_cmd('stash' . pop, 0)
+function! s:Stash(action) abort
+  if a:action ==# 'staged' && v:count
+    echoerr 'czs does not accept a count'
+    return 1
+  elseif index(['push', 'keep-index'], a:action) >= 0 && v:count > 2
+    echoerr 'Stash push count must be 1 or 2'
+    return 1
+  endif
+
+  let commands = {
+        \ 'push': 'stash push' . (v:count == 1 ? ' --include-untracked' : v:count == 2 ? ' --all' : ''),
+        \ 'keep-index': 'stash push --keep-index' . (v:count == 1 ? ' --include-untracked' : v:count == 2 ? ' --all' : ''),
+        \ 'staged': 'stash push --staged',
+        \ 'apply': 'stash apply' . (v:count ? ' stash@{' . v:count . '}' : ''),
+        \ 'apply-index': 'stash apply --index' . (v:count ? ' stash@{' . v:count . '}' : ''),
+        \ 'pop': 'stash pop' . (v:count ? ' stash@{' . v:count . '}' : ''),
+        \ 'pop-index': 'stash pop --index' . (v:count ? ' stash@{' . v:count . '}' : ''),
+        \ }
+  call s:git_cmd(commands[a:action], 0)
 
   redraw
   if !v:shell_error
-    echo 'Stash' . (a:pop ? ' popped!' : 'ed')
+    echo 'Stash updated!'
   endif
+  return v:shell_error
 endfunction
 
 " {{{1 Fugitive

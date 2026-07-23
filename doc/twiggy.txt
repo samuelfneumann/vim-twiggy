@@ -214,9 +214,9 @@ the mapping docs in the quickhelp buffer.  To turn it off:
   let g:twiggy_show_full_ui = 0
 
 
-MAPPINGS                                        *twiggy-mappings*
+MAPS                                            *twiggy-maps*
 
-                  Navigation~
+Navigation~
                                                 *twiggy-<C-N>*
 <C-N>             Jump to the first branch of the next group
 
@@ -232,7 +232,26 @@ JU                Jump to the current branch's upstream
                                                 *twiggy-JP*
 JP                Jump to the current branch's push destination
 
-                  Sorting~
+                                                *twiggy-)*
+)                 Move to the next branch, accepts a count
+
+                                                *twiggy-(*
+(                 Move to the previous branch, accepts a count
+
+                                                *twiggy-]]*
+]]                Same as |twiggy-<C-N>|
+
+                                                *twiggy-[[*
+[[                Same as |twiggy-<C-P>|
+
+                                                *twiggy-][*
+][                Move to the end of the next section, accepts a count
+
+                                                *twiggy-[]*
+[]                Move to the start of the previous section, accepts a count
+
+
+Sorting~
                                                 *twiggy-i*
 i                 Cycle through sorts of the group of the branch under the
                   cursor.  If on a remote, all remote groups will be sorted.
@@ -258,7 +277,7 @@ a                 Toggle grouping of local branches with slashes (/) in their
 ga                Toggle grouping of remote branches with slashes (/) in their
                   names.
 
-                  Checkout/Switch~
+Checkout/Switch~
                                                 *twiggy-c*
 c                 Checkout the branch under the cursor.  If the branch is a
                   remote, create a tracking branch if one doesn't already
@@ -302,18 +321,21 @@ co<space>         Populate command line with "G checkout "
                                                 *twiggy-s<space>*
 cs<space>         Populate command line with "G switch "
 
-                  Committing~
+Committing~
                                                 *twiggy-c<space>*
 c<Space>         Populate command line with ":G commit "
 
-                  Fetching~
+                                                *twiggy-cr<space>*
+cr<Space>        Populate command line with ":G revert "
+
+Fetching~
                                                 *twiggy-f*
 f                 Fetch the remote for the branch under the cursor.
 
                                                 *twiggy-cf<space>*
 cf<Space>         Populate command line with ":G fetch "
 
-                  Merging and Rebasing~
+Merging and Rebasing~
                                                 *twiggy-cm<space>*
 cm<Space>         Populate command line with ":G merge "
 
@@ -362,7 +384,7 @@ gri               Like ri, with with --autostash
                                                 *twiggy-gRi*
 gRi               Like iR, with with --autostash
 
-                  Pushing~
+Pushing~
                                                 *twiggy-P*
 P                 Push the local branch under the cursor (think of it as an
                   upward arrow).  It will set the upstream if it's not
@@ -382,11 +404,11 @@ gP                Prompt to specify the remote repo before pushing.
                                                 *twiggy-p*
 p                 Pull the branch under the cursor.
 
-                  Naming~
+Naming~
                                                 *twiggy-,*
 ,                 Rename the branch under the cursor.
                   
-                  Deleting~
+Deleting~
                                                 *twiggy-dd*
 dd                Delete the branch under the cursor.  If the branch isn't
                   fully merged, the prompt will warn you of this.  Press <CR>
@@ -406,7 +428,7 @@ dP                If the branch under the cursor is remote, this will prompt
 .                 Start a `:Git` command line auto-populated with the branch
                   under the cursor.
 
-                  Visual mode~
+Visual mode~
                                                 *twiggy-visual-mode*
 d                 Delete all branches in the visual selection.
 
@@ -422,7 +444,7 @@ P                 Push all local branches in the visual selection.
 !P                Force push all local branches in the visual selection with
                   --force-with-lease.
 
-                  Git Log~
+Git Log~
 
                   Twiggy is all about branching, not commit history.
                   But if you install one of these two plugins:
@@ -439,12 +461,29 @@ gl                Git log on the branch under the cursor
 gL                Git log on the range of the commits between the branch 
                   under the cursor and the current branch
 
-                  Stashing~
-                                                *twiggy->>*
-<<                `git stash`
+Stashing~
+                                                *twiggy-czz*
+czz               Push stash.  Pass a [count] of 1 to include untracked files
+                  or 2 to include ignored files as well.
 
-                                                *twiggy-<<*
->>                `git stash pop`
+                                                *twiggy-czw*
+czw               Push stash of the work-tree, preserving the index.  Accepts
+                  the same counts as czz.
+
+                                                *twiggy-czs*
+czs               Push stash of the stage.  Does not accept a count.
+
+                                                *twiggy-czA*
+czA               Apply topmost stash, or stash@{count}.
+
+                                                *twiggy-cza*
+cza               Apply topmost stash, or stash@{count}, preserving the index.
+
+                                                *twiggy-czP*
+czP               Pop topmost stash, or stash@{count}.
+
+                                                *twiggy-czp*
+czp               Pop topmost stash, or stash@{count}, preserving the index.
 
                                                 *twiggy-cz<space>*
 cz<space>         Populate command line with "G stash "
@@ -454,16 +493,15 @@ cz<space>         Populate command line with "G stash "
                     c - continue (commit resolved changes)
                     a - abort (reset to previous state)
 
-                  The End~
+Miscellaneous Maps~
                                                 *twiggy-q*
-q                 Quit
-
-                                                *twiggy-Q*
-Q                 Quit all twiggy buffers (including the error buffer)
+gq                Quit
 
                                                 *twiggy-g?*
 g?                Open the quickhelp
 
+                                                *twiggy-.*
+.                 Populate the command line with ":Git <cursor> <branch>"
 
 AUTOCOMMANDS                                    *twiggy-autocommands*
 
