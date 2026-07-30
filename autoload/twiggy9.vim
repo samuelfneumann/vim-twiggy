@@ -827,7 +827,7 @@ def QuickhelpView(): list<string>
 enddef
 
 def RebaseView(): list<string>
-  return ['rebase in progress', '', 'from this window:', '  c to continue', '  s to skip', '  a to abort']
+  return ['rebase in progress', '', 'from this window:', '  c to continue', 'e to edit todo', '  s to skip', '  a to abort']
 enddef
 
 def MergeView(): list<string>

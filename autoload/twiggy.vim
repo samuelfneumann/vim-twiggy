@@ -797,6 +797,7 @@ function! s:rebase_view() abort
         \ "",
         \ "from this window:",
         \ "  c to continue",
+        \ "  e to edit todo",
         \ "  s to skip",
         \ "  a to abort"
         \ ]
