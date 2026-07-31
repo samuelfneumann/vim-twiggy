@@ -1203,7 +1203,7 @@ function! s:Render() abort
       call s:mapping('a', 'Abort', ['stash'])
     endif
 
-    syntax match TwiggyAttnModeMapping "\v%3c(s|c|a)"
+    syntax match TwiggyAttnModeMapping "\v%3c(s|c|a|e)"
     highlight link TwiggyAttnModeMapping Identifier
 
     syntax match TwiggyAttnModeTitle "\v^(rebase|merge|cherry pick) in progress"
