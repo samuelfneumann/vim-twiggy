@@ -360,29 +360,29 @@ r<Space>          Populate command line with :Git rebase
 
 
                                                 *twiggy-r*
-r                 Rebase the current branch off the branch under the cursor.
+rr                Rebase the current branch off the branch under the cursor.
 
                                                 *twiggy-R*
-R                 Rebase the current branch off the branch under the
+RR                Rebase the current branch off the branch under the
                   cursor's remote (if it has one).
 
                                                 *twiggy-gr*
-gr                Like r, but with --autostash
+gr                Like rr, but with --autostash
 
                                                 *twiggy-gR*
-gR                Like R, but with --autostash
+gR                Like RR, but with --autostash
 
                                                 *twiggy-ri*
-ri                Like r, with with -i
+ri                Like rr, with with --interactive
 
                                                 *twiggy-Ri*
-Ri                Like R, with with -i
+Ri                Like RR, with with --interactive
 
                                                 *twiggy-gri*
-gri               Like ri, with with --autostash
+gri               Like rr, with with --autostash --interactive
 
                                                 *twiggy-gRi*
-gRi               Like iR, with with --autostash
+gRi               Like RR, with with --autostash --interactive
 
 Pushing~
                                                 *twiggy-P*
