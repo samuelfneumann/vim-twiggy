@@ -1234,7 +1234,7 @@ def Render(): void
 
   if NoCommits()
     set modifiable
-    execute('silent 1,$delete _')
+    execute('silent :1,$delete _')
     append(0, 'No commits')
     delete _
     set nomodifiable
