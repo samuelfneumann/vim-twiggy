@@ -35,9 +35,9 @@ function! TwiggyCompleteBranches(A,L,P) abort
   let branches = ''
 
   if UseVim9()
-	  let loop_branches = twiggy#get_branches()
-  else
 	  let loop_branches = twiggy9#GetBranches()
+  else
+	  let loop_branches = twiggy#get_branches()
   endif
 
   for branch in loop_branches
