@@ -380,6 +380,8 @@ endfunction
 "   {{{2 branch_status
 function! s:get_git_mode() abort
   let git_dir = exists('t:twiggy_git_dir') ? t:twiggy_git_dir : b:git_dir
+  " Fugitive's Git dir can be a .git file in a linked worktree.
+  let git_dir = fnamemodify(FugitiveFind('.git/HEAD', git_dir), ':h')
   if isdirectory(git_dir . '/rebase-apply') ||
         \ isdirectory(git_dir . '/rebase-merge')
     return 'rebase'
