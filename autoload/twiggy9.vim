@@ -442,6 +442,8 @@ enddef
 
 def GetGitMode(): string
   var git_dir = exists('t:twiggy_git_dir') ? t:twiggy_git_dir : b:git_dir
+  # Fugitive's Git dir can be a .git file in a linked worktree.
+  git_dir = g:FugitiveFind('.git/HEAD', git_dir)->fnamemodify(':h')
   if isdirectory(git_dir .. '/rebase-apply') || isdirectory(git_dir .. '/rebase-merge')
     return 'rebase'
   elseif Fexists(git_dir .. '/CHERRY_PICK_HEAD')
